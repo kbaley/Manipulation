@@ -303,6 +303,13 @@ h2 {
     linear-gradient(145deg, #fff7d8, #ead39a);
 }
 
+.card.is-suggested-move {
+  border-color: #c98b18;
+  background:
+    linear-gradient(145deg, #fff8dc, #f1d382);
+  box-shadow: 0 7px 16px rgba(18, 25, 21, 0.18), 0 0 0 3px rgba(201, 139, 24, 0.24);
+}
+
 .card.is-computer-played {
   border-color: #2d7b83;
   background:
@@ -311,6 +318,11 @@ h2 {
 }
 
 .card.is-computer-played.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 10px 18px rgba(18, 25, 21, 0.22), 0 0 0 3px rgba(217, 95, 58, 0.32);
+}
+
+.card.is-suggested-move.is-selected {
   border-color: var(--accent);
   box-shadow: 0 10px 18px rgba(18, 25, 21, 0.22), 0 0 0 3px rgba(217, 95, 58, 0.32);
 }
@@ -372,6 +384,41 @@ h2 {
 
 .message.bad {
   color: var(--bad);
+}
+
+.move-hint {
+  display: grid;
+  gap: 8px;
+  margin: -4px 0 14px;
+  padding: 12px;
+  border: 1px solid rgba(201, 139, 24, 0.45);
+  border-radius: 8px;
+  background: rgba(255, 248, 220, 0.82);
+}
+
+.move-hint strong {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+}
+
+.move-hint p {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.45;
+}
+
+.move-hint__groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.move-hint__groups span {
+  padding: 6px 8px;
+  border: 1px solid rgba(201, 139, 24, 0.35);
+  border-radius: 8px;
+  background: rgba(255, 253, 246, 0.78);
+  font-weight: 800;
 }
 
 .modal {

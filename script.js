@@ -32,6 +32,7 @@ const state = {
   cardsPlayedThisTurn: 0,
   lastDrawnCardId: null,
   computerPlayedCardIds: new Set(),
+  suggestedMove: null,
   winner: null,
 };
 
@@ -46,8 +47,10 @@ const els = {
   handTitle: document.querySelector("#handTitle"),
   tableHint: document.querySelector("#tableHint"),
   message: document.querySelector("#message"),
+  moveHint: document.querySelector("#moveHint"),
   drawBtn: document.querySelector("#drawBtn"),
   endTurnBtn: document.querySelector("#endTurnBtn"),
+  suggestMoveBtn: document.querySelector("#suggestMoveBtn"),
   newGroupBtn: document.querySelector("#newGroupBtn"),
   takeBackBtn: document.querySelector("#takeBackBtn"),
   restoreBtn: document.querySelector("#restoreBtn"),
@@ -96,6 +99,7 @@ function startGame() {
   state.selected.clear();
   state.returnableCardIds.clear();
   state.computerPlayedCardIds.clear();
+  state.suggestedMove = null;
   state.cardsPlayedThisTurn = 0;
   state.lastDrawnCardId = null;
   state.winner = null;
@@ -155,6 +159,12 @@ function render() {
   els.tableHint.textContent = state.computerPlayedCardIds.size > 0
     ? "Cards the computer just played are highlighted."
     : "Select cards, then use a table action.";
+  const validation = validateTable(state.table);
+  const locked = player.isComputer || state.winner;
+  const hasPlayableMove = !locked && hasAnyPlayableMove(player.hand, state.table);
+  if (locked || state.cardsPlayedThisTurn > 0 || !hasPlayableMove) {
+    state.suggestedMove = null;
+  }
   els.statusGrid.innerHTML = "";
 
   state.players.forEach((p, index) => {
@@ -181,13 +191,14 @@ function render() {
     els.hand.append(renderCard(card, "hand"));
   });
 
-  const validation = validateTable(state.table);
-  const locked = player.isComputer || state.winner;
   els.endTurnBtn.disabled = locked || state.cardsPlayedThisTurn === 0 || !validation.ok;
-  els.drawBtn.disabled = locked || state.cardsPlayedThisTurn > 0 || state.deck.length === 0 || hasAnyPlayableMove(player.hand, state.table);
+  els.drawBtn.disabled = locked || state.cardsPlayedThisTurn > 0 || state.deck.length === 0 || hasPlayableMove;
+  els.suggestMoveBtn.disabled = locked || state.cardsPlayedThisTurn > 0 || !hasPlayableMove;
+  els.suggestMoveBtn.textContent = state.suggestedMove ? "Hide move" : "Show move";
   els.newGroupBtn.disabled = locked || getSelectedCards().length === 0;
   els.takeBackBtn.disabled = locked || getReturnableSelectedCards().length === 0;
   els.restoreBtn.disabled = locked || (state.cardsPlayedThisTurn === 0 && state.selected.size === 0 && sameTable(state.table, state.turnStart.table));
+  renderMoveHint();
 
   if (player.isComputer) {
     setMessage("Computer is thinking.", "warn");
@@ -195,7 +206,7 @@ function render() {
     setMessage(validation.reason, "bad");
   } else if (state.cardsPlayedThisTurn > 0) {
     setMessage("Valid table. You can keep manipulating or end your turn.", "good");
-  } else if (hasAnyPlayableMove(player.hand, state.table)) {
+  } else if (hasPlayableMove) {
     setMessage("You have a playable card or meld, so you must play before drawing.", "warn");
   } else {
     setMessage("No play is available. Draw until you can play.", "warn");
@@ -226,6 +237,9 @@ function renderCard(card, zone, groupIndex = null) {
   const canTakeBack = zone === "table" && state.returnableCardIds.has(card.id);
   const justDrawn = zone === "hand" && state.lastDrawnCardId === card.id;
   const computerPlayed = zone === "table" && state.computerPlayedCardIds.has(card.id);
+  const suggested = state.suggestedMove &&
+    ((zone === "hand" && state.suggestedMove.handCardIds.has(card.id)) ||
+      (zone === "table" && state.suggestedMove.tableCardIds.has(card.id)));
   button.type = "button";
   button.className = [
     "card",
@@ -233,6 +247,7 @@ function renderCard(card, zone, groupIndex = null) {
     state.selected.has(card.id) ? "is-selected" : "",
     justDrawn ? "is-just-drawn" : "",
     computerPlayed ? "is-computer-played" : "",
+    suggested ? "is-suggested-move" : "",
     canTakeBack ? "can-take-back" : "",
   ].filter(Boolean).join(" ");
   button.dataset.cardId = card.id;
@@ -250,6 +265,26 @@ function renderCard(card, zone, groupIndex = null) {
 function setMessage(text, tone = "") {
   els.message.textContent = text;
   els.message.className = `message ${tone}`;
+}
+
+function renderMoveHint() {
+  if (!state.suggestedMove) {
+    els.moveHint.classList.add("hidden");
+    els.moveHint.innerHTML = "";
+    return;
+  }
+
+  const preview = state.suggestedMove.melds.length === 0
+    ? ""
+    : `<div class="move-hint__groups">${state.suggestedMove.melds.map((meld) =>
+      `<span>${formatCards(meld)}</span>`
+    ).join("")}</div>`;
+  els.moveHint.classList.remove("hidden");
+  els.moveHint.innerHTML = `
+    <strong>Suggested move</strong>
+    <p>${state.suggestedMove.text}</p>
+    ${preview}
+  `;
 }
 
 function selectedFromHandCount() {
@@ -285,6 +320,7 @@ function moveSelectedToGroup(groupId) {
   const targetGroup = state.table.find((group) => group.id === groupId);
   if (!targetGroup) return;
 
+  clearSuggestedMove();
   clearComputerPlayHighlight();
   const playedFromHand = selectedFromHandCount();
   removeSelectedFromOrigins(selected);
@@ -299,6 +335,7 @@ function moveSelectedToGroup(groupId) {
 function createGroupFromSelected() {
   const selected = getSelectedCards();
   if (selected.length === 0) return;
+  clearSuggestedMove();
   clearComputerPlayHighlight();
   const playedFromHand = selectedFromHandCount();
   removeSelectedFromOrigins(selected);
@@ -321,6 +358,7 @@ function takeBackSelectedCards() {
   }
 
   removeSelectedFromOrigins(selected);
+  clearSuggestedMove();
   clearComputerPlayHighlight();
   currentPlayer().hand.push(...selected.map((entry) => entry.card));
   state.cardsPlayedThisTurn = Math.max(0, state.cardsPlayedThisTurn - selected.length);
@@ -343,6 +381,7 @@ function removeEmptyGroups() {
 }
 
 function restoreTurn() {
+  clearSuggestedMove();
   clearComputerPlayHighlight();
   state.deck = [...state.turnStart.deck];
   currentPlayer().hand = [...state.turnStart.hand];
@@ -367,6 +406,7 @@ function drawCard() {
     setMessage("The deck is empty.", "bad");
     return;
   }
+  clearSuggestedMove();
   clearComputerPlayHighlight();
   const drawnCard = state.deck.pop();
   player.hand.push(drawnCard);
@@ -381,7 +421,7 @@ function endTurn() {
   if (state.cardsPlayedThisTurn === 0 || !validation.ok) return;
   if (currentPlayer().hand.length === 0) {
     state.winner = currentPlayer();
-    els.winnerText.textContent = `${currentPlayer().name} wins`;
+    els.winnerText.textContent = winnerMessage(currentPlayer());
     els.winnerModal.classList.remove("hidden");
     render();
     return;
@@ -399,6 +439,7 @@ function endTurn() {
 }
 
 function freezeVisibleControls() {
+  els.suggestMoveBtn.disabled = true;
   els.drawBtn.disabled = true;
   els.endTurnBtn.disabled = true;
   els.newGroupBtn.disabled = true;
@@ -408,6 +449,14 @@ function freezeVisibleControls() {
 
 function clearComputerPlayHighlight() {
   state.computerPlayedCardIds.clear();
+}
+
+function clearSuggestedMove() {
+  state.suggestedMove = null;
+}
+
+function winnerMessage(player) {
+  return player.isComputer ? `${player.name} wins` : "You win";
 }
 
 function validateTable(groups) {
@@ -461,7 +510,118 @@ function hasAnyPlayableMove(hand, table) {
   if (hand.some((card) => canJoinExistingGroup(card, table) || canSplitRunWithCard(card, table))) {
     return true;
   }
-  return canSplitKindWithHand(hand, table);
+  return canSplitKindWithHand(hand, table) || canRepartitionTableWithHand(hand, table);
+}
+
+function findSuggestedMove(hand, table) {
+  return findNewMeldSuggestion(hand) ||
+    findJoinSuggestion(hand, table) ||
+    findSplitRunSuggestion(hand, table) ||
+    findSplitKindSuggestion(hand, table) ||
+    findRepartitionSuggestion(hand, table);
+}
+
+function findNewMeldSuggestion(hand) {
+  const meld = getBestHandMeld(hand);
+  if (!meld) return null;
+  return buildMoveSuggestion({
+    text: `Make a new group with ${formatCards(meld)}.`,
+    handCards: meld,
+    tableCards: [],
+    melds: [meld],
+  });
+}
+
+function findJoinSuggestion(hand, table) {
+  for (const card of hand) {
+    for (const group of table) {
+      if (isKind(group.cards) && group.cards.length === 3 && group.cards[0].value === card.value) {
+        const meld = orderGroupCards([...group.cards, card]);
+        return buildMoveSuggestion({
+          text: `Play ${formatCard(card)} onto the ${group.cards[0].rank}s.`,
+          handCards: [card],
+          tableCards: group.cards,
+          melds: [meld],
+        });
+      }
+      if (isRun(group.cards) && group.cards[0].suit === card.suit && isRun([...group.cards, card])) {
+        const meld = orderGroupCards([...group.cards, card]);
+        return buildMoveSuggestion({
+          text: `Play ${formatCard(card)} onto the run ${formatCards(group.cards)}.`,
+          handCards: [card],
+          tableCards: group.cards,
+          melds: [meld],
+        });
+      }
+    }
+  }
+  return null;
+}
+
+function findSplitRunSuggestion(hand, table) {
+  for (const card of hand) {
+    for (const group of table) {
+      if (!isRun(group.cards) || group.cards[0].suit !== card.suit) continue;
+      if (!group.cards.some((tableCard) => tableCard.value === card.value)) continue;
+      const partition = partitionIntoValidGroups([...group.cards, card], 2);
+      if (!partition) continue;
+      return buildMoveSuggestion({
+        text: `Play ${formatCard(card)} and split ${formatCards(group.cards)} into two valid runs.`,
+        handCards: [card],
+        tableCards: group.cards,
+        melds: partition,
+      });
+    }
+  }
+  return null;
+}
+
+function findSplitKindSuggestion(hand, table) {
+  for (const group of table) {
+    if (!isKind(group.cards) || group.cards.length !== 4) continue;
+    const matchingCards = hand.filter((card) => card.value === group.cards[0].value).slice(0, 2);
+    if (matchingCards.length < 2) continue;
+    const melds = [
+      orderGroupCards([group.cards[0], group.cards[1], matchingCards[0]]),
+      orderGroupCards([group.cards[2], group.cards[3], matchingCards[1]]),
+    ];
+    return buildMoveSuggestion({
+      text: `Play ${formatCards(matchingCards)} to split the four ${group.cards[0].rank}s into two groups.`,
+      handCards: matchingCards,
+      tableCards: group.cards,
+      melds,
+    });
+  }
+  return null;
+}
+
+function findRepartitionSuggestion(hand, table) {
+  const play = findRepartitionTablePlay(hand, table);
+  if (!play) return null;
+  return buildMoveSuggestion({
+    text: `Play ${formatCards(play.handCards)} and rearrange the highlighted table cards into these valid groups.`,
+    handCards: play.handCards,
+    tableCards: table.flatMap((group) => group.cards),
+    melds: play.melds,
+  });
+}
+
+function buildMoveSuggestion({ text, handCards, tableCards, melds }) {
+  return {
+    text,
+    handCardIds: new Set(handCards.map((card) => card.id)),
+    tableCardIds: new Set(tableCards.map((card) => card.id)),
+    melds: melds.map(orderGroupCards),
+  };
+}
+
+function getBestHandMeld(hand) {
+  const candidates = [
+    ...getCandidateKinds(hand),
+    ...getCandidateRuns(hand),
+  ].filter((cards) => cards.some((card) => hand.includes(card)));
+  candidates.sort((a, b) => b.length - a.length);
+  return candidates[0] ? orderGroupCards(candidates[0]) : null;
 }
 
 function canMakeNewMeld(hand) {
@@ -508,6 +668,157 @@ function canSplitKindWithHand(hand, table) {
     const matchingHandCards = hand.filter((card) => card.value === group.cards[0].value);
     return matchingHandCards.length >= 2;
   });
+}
+
+function canRepartitionTableWithHand(hand, table) {
+  return Boolean(findRepartitionTablePlay(hand, table));
+}
+
+function findRepartitionTablePlay(hand, table) {
+  const tableCards = table.flatMap((group) => group.cards);
+  if (tableCards.length === 0) return null;
+
+  for (let handCount = 1; handCount <= Math.min(3, hand.length); handCount += 1) {
+    for (const handCards of combinations(hand, handCount)) {
+      const melds = findMeldCover([...tableCards, ...handCards]);
+      if (melds) {
+        return { handCards, melds };
+      }
+    }
+  }
+  return null;
+}
+
+function findMeldCover(cards) {
+  const ids = new Set(cards.map((card) => card.id));
+  const candidateMelds = getCandidateMelds(cards)
+    .filter((meld) => meld.every((card) => ids.has(card.id)));
+  const candidatesByCardId = new Map([...ids].map((id) => [id, []]));
+
+  candidateMelds.forEach((meld) => {
+    for (const card of meld) {
+      candidatesByCardId.get(card.id).push(meld);
+    }
+  });
+
+  return searchMeldCover(ids, candidatesByCardId, new Map());
+}
+
+function searchMeldCover(uncoveredIds, candidatesByCardId, memo) {
+  if (uncoveredIds.size === 0) return [];
+
+  const key = [...uncoveredIds].sort().join("|");
+  if (memo.has(key)) return memo.get(key);
+
+  let targetId = null;
+  let targetCandidates = null;
+  for (const id of uncoveredIds) {
+    const candidates = candidatesByCardId.get(id)
+      .filter((meld) => meld.every((card) => uncoveredIds.has(card.id)));
+    if (targetCandidates === null || candidates.length < targetCandidates.length) {
+      targetId = id;
+      targetCandidates = candidates;
+    }
+    if (targetCandidates.length === 0) break;
+  }
+
+  if (!targetId || targetCandidates.length === 0) {
+    memo.set(key, null);
+    return null;
+  }
+
+  targetCandidates.sort((a, b) => b.length - a.length);
+  for (const meld of targetCandidates) {
+    const nextUncoveredIds = new Set(uncoveredIds);
+    for (const card of meld) {
+      nextUncoveredIds.delete(card.id);
+    }
+    const cover = searchMeldCover(nextUncoveredIds, candidatesByCardId, memo);
+    if (cover) {
+      const solution = [meld, ...cover];
+      memo.set(key, solution);
+      return solution;
+    }
+  }
+
+  memo.set(key, null);
+  return null;
+}
+
+function getCandidateMelds(cards) {
+  const meldsByKey = new Map();
+  for (const meld of [...getCandidateKinds(cards), ...getCandidateRuns(cards)]) {
+    const key = meld.map((card) => card.id).sort().join("|");
+    meldsByKey.set(key, orderGroupCards(meld));
+  }
+  return [...meldsByKey.values()];
+}
+
+function getCandidateKinds(cards) {
+  const byValue = new Map();
+  for (const card of cards) {
+    if (!byValue.has(card.value)) byValue.set(card.value, []);
+    byValue.get(card.value).push(card);
+  }
+
+  const melds = [];
+  for (const sameValueCards of byValue.values()) {
+    for (let size = 3; size <= Math.min(4, sameValueCards.length); size += 1) {
+      melds.push(...combinations(sameValueCards, size));
+    }
+  }
+  return melds;
+}
+
+function getCandidateRuns(cards) {
+  const melds = [];
+  for (const suit of SUITS) {
+    const cardsByValue = new Map();
+    for (const card of cards.filter((candidate) => candidate.suit === suit.id)) {
+      if (!cardsByValue.has(card.value)) cardsByValue.set(card.value, []);
+      cardsByValue.get(card.value).push(card);
+    }
+
+    for (let startValue = 1; startValue <= 13; startValue += 1) {
+      const values = [];
+      let value = startValue;
+      while (cardsByValue.has(value) && !values.includes(value)) {
+        values.push(value);
+        value = nextValue(value);
+      }
+      for (let length = 3; length <= values.length; length += 1) {
+        melds.push(...pickOneCardPerValue(values.slice(0, length), cardsByValue));
+      }
+    }
+  }
+  return melds;
+}
+
+function pickOneCardPerValue(values, cardsByValue, index = 0, current = [], melds = []) {
+  if (index === values.length) {
+    melds.push([...current]);
+    return melds;
+  }
+
+  for (const card of cardsByValue.get(values[index])) {
+    current.push(card);
+    pickOneCardPerValue(values, cardsByValue, index + 1, current, melds);
+    current.pop();
+  }
+  return melds;
+}
+
+function combinations(items, size, start = 0, current = [], results = []) {
+  if (current.length === size) {
+    results.push([...current]);
+    return results;
+  }
+  for (let index = start; index <= items.length - (size - current.length); index += 1) {
+    current.push(items[index]);
+    combinations(items, size, index + 1, current, results);
+    current.pop();
+  }
+  return results;
 }
 
 function canPartitionIntoValidGroups(cards, groupCount) {
@@ -575,6 +886,7 @@ function playBestComputerMove() {
     ...getComputerJoinCandidates(),
     ...getComputerSplitRunCandidates(),
     ...getComputerSplitKindCandidates(),
+    ...getComputerRepartitionCandidates(),
     ...getComputerNewMeldCandidates(),
   ];
   candidates.sort(compareComputerMoves);
@@ -683,6 +995,23 @@ function getComputerSplitKindCandidates() {
   return candidates;
 }
 
+function getComputerRepartitionCandidates() {
+  const play = findRepartitionTablePlay(currentPlayer().hand, state.table);
+  if (!play) return [];
+  return [{
+    label: "repartition-table",
+    score: 38 + play.handCards.length,
+    handCards: play.handCards,
+    play: () => {
+      removeCardsFromHand(play.handCards);
+      state.table = play.melds.map((cards) => ({
+        id: crypto.randomUUID(),
+        cards: orderGroupCards(cards),
+      }));
+    },
+  }];
+}
+
 function getComputerNewMeldCandidates() {
   return [
     ...getComputerKindCandidates(),
@@ -733,6 +1062,14 @@ function getComputerRunCandidates() {
 function removeCardsFromHand(cards) {
   const ids = new Set(cards.map((card) => card.id));
   currentPlayer().hand = currentPlayer().hand.filter((card) => !ids.has(card.id));
+}
+
+function formatCard(card) {
+  return `${card.rank}${card.suitSymbol}`;
+}
+
+function formatCards(cards) {
+  return orderGroupCards(cards).map(formatCard).join(" ");
 }
 
 function orderGroupCards(cards) {
@@ -791,11 +1128,28 @@ function toggleSelected(cardId) {
   render();
 }
 
+function toggleSuggestedMove() {
+  if (state.suggestedMove) {
+    state.suggestedMove = null;
+    render();
+    return;
+  }
+
+  const suggestion = findSuggestedMove(currentPlayer().hand, state.table);
+  if (!suggestion) {
+    setMessage("No specific move could be found.", "bad");
+    return;
+  }
+  state.suggestedMove = suggestion;
+  render();
+}
+
 els.newGroupBtn.addEventListener("click", createGroupFromSelected);
 els.takeBackBtn.addEventListener("click", takeBackSelectedCards);
 els.restoreBtn.addEventListener("click", restoreTurn);
 els.drawBtn.addEventListener("click", drawCard);
 els.endTurnBtn.addEventListener("click", endTurn);
+els.suggestMoveBtn.addEventListener("click", toggleSuggestedMove);
 els.playAgainBtn.addEventListener("click", () => {
   els.winnerModal.classList.add("hidden");
   els.setup.classList.remove("hidden");

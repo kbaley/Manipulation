@@ -52,10 +52,12 @@
               <p id="message" class="message">Play at least one card to end your turn.</p>
             </div>
             <div class="actions">
+              <button id="suggestMoveBtn" type="button">Show move</button>
               <button id="drawBtn" type="button">Draw</button>
               <button id="endTurnBtn" type="button">End turn</button>
             </div>
           </div>
+          <div class="move-hint hidden" id="moveHint" aria-live="polite"></div>
           <div class="hand" id="hand"></div>
         </section>
       </section>
