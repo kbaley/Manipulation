@@ -21,6 +21,8 @@ const RANKS = [
   { label: "K", value: 13 },
 ];
 
+const MAX_REPARTITION_HAND_CARDS = 4;
+
 const state = {
   players: [],
   deck: [],
@@ -33,6 +35,7 @@ const state = {
   lastDrawnCardId: null,
   computerPlayedCardIds: new Set(),
   suggestedMove: null,
+  draggingCardId: null,
   winner: null,
 };
 
@@ -214,6 +217,7 @@ function renderGroup(group, groupIndex) {
   const validation = validateGroup(group.cards);
   const groupEl = document.createElement("article");
   groupEl.className = `meld ${validation.ok ? "" : "is-invalid"}`;
+  groupEl.dataset.groupId = group.id;
   groupEl.innerHTML = `
     <div class="meld__head">
       <span>${validation.label}</span>
@@ -249,6 +253,7 @@ function renderCard(card, zone, groupIndex = null) {
   ].filter(Boolean).join(" ");
   button.dataset.cardId = card.id;
   button.dataset.zone = zone;
+  button.draggable = !currentPlayer().isComputer && !state.winner;
   if (canTakeBack) button.title = "Played this turn";
   else if (computerPlayed) button.title = "Played by the computer last turn";
   if (groupIndex !== null) button.dataset.groupIndex = String(groupIndex);
@@ -329,6 +334,25 @@ function moveSelectedToGroup(groupId) {
   render();
 }
 
+function moveSingleCardToGroup(cardId, groupId) {
+  const entry = findCardEntry(cardId);
+  const targetGroup = state.table.find((group) => group.id === groupId);
+  if (!entry || !targetGroup) return;
+  if (entry.zone === "table" && state.table[entry.groupIndex]?.id === groupId) return;
+
+  clearSuggestedMove();
+  clearComputerPlayHighlight();
+  const playedFromHand = entry.zone === "hand" ? 1 : 0;
+  removeCardsFromOrigins([entry.card]);
+  targetGroup.cards = orderGroupCards([...targetGroup.cards, entry.card]);
+  state.cardsPlayedThisTurn += playedFromHand;
+  state.selected.delete(cardId);
+  state.draggingCardId = null;
+  removeEmptyGroups();
+  sortHands();
+  render();
+}
+
 function createGroupFromSelected() {
   const selected = getSelectedCards();
   if (selected.length === 0) return;
@@ -366,11 +390,26 @@ function takeBackSelectedCards() {
 }
 
 function removeSelectedFromOrigins(selected) {
-  const ids = new Set(selected.map((entry) => entry.card.id));
+  removeCardsFromOrigins(selected.map((entry) => entry.card));
+}
+
+function removeCardsFromOrigins(cards) {
+  const ids = new Set(cards.map((card) => card.id));
   currentPlayer().hand = currentPlayer().hand.filter((card) => !ids.has(card.id));
   for (const group of state.table) {
     group.cards = group.cards.filter((card) => !ids.has(card.id));
   }
+}
+
+function findCardEntry(cardId) {
+  const handCard = currentPlayer().hand.find((card) => card.id === cardId);
+  if (handCard) return { card: handCard, zone: "hand" };
+
+  for (let groupIndex = 0; groupIndex < state.table.length; groupIndex += 1) {
+    const card = state.table[groupIndex].cards.find((candidate) => candidate.id === cardId);
+    if (card) return { card, zone: "table", groupIndex };
+  }
+  return null;
 }
 
 function removeEmptyGroups() {
@@ -675,7 +714,7 @@ function findRepartitionTablePlay(hand, table) {
   const tableCards = table.flatMap((group) => group.cards);
   if (tableCards.length === 0) return null;
 
-  for (let handCount = 1; handCount <= Math.min(3, hand.length); handCount += 1) {
+  for (let handCount = 1; handCount <= Math.min(MAX_REPARTITION_HAND_CARDS, hand.length); handCount += 1) {
     for (const handCards of combinations(hand, handCount)) {
       const melds = findMeldCover([...tableCards, ...handCards]);
       if (melds) {
@@ -1117,6 +1156,50 @@ els.melds.addEventListener("click", (event) => {
   } else if (cardEl) {
     toggleSelected(cardEl.dataset.cardId);
   }
+});
+
+els.game.addEventListener("dragstart", (event) => {
+  if (currentPlayer().isComputer || state.winner) return;
+  const cardEl = event.target.closest("[data-card-id]");
+  if (!cardEl) return;
+  state.draggingCardId = cardEl.dataset.cardId;
+  cardEl.classList.add("is-dragging");
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", cardEl.dataset.cardId);
+});
+
+els.game.addEventListener("dragend", (event) => {
+  const cardEl = event.target.closest("[data-card-id]");
+  if (cardEl) cardEl.classList.remove("is-dragging");
+  state.draggingCardId = null;
+  document.querySelectorAll(".meld.is-drop-target").forEach((groupEl) => {
+    groupEl.classList.remove("is-drop-target");
+  });
+});
+
+els.melds.addEventListener("dragover", (event) => {
+  if (!state.draggingCardId || currentPlayer().isComputer) return;
+  const groupEl = event.target.closest("[data-group-id]");
+  if (!groupEl) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  groupEl.classList.add("is-drop-target");
+});
+
+els.melds.addEventListener("dragleave", (event) => {
+  const groupEl = event.target.closest("[data-group-id]");
+  if (!groupEl || groupEl.contains(event.relatedTarget)) return;
+  groupEl.classList.remove("is-drop-target");
+});
+
+els.melds.addEventListener("drop", (event) => {
+  if (!state.draggingCardId || currentPlayer().isComputer) return;
+  const groupEl = event.target.closest("[data-group-id]");
+  if (!groupEl) return;
+  event.preventDefault();
+  groupEl.classList.remove("is-drop-target");
+  const cardId = event.dataTransfer.getData("text/plain") || state.draggingCardId;
+  moveSingleCardToGroup(cardId, groupEl.dataset.groupId);
 });
 
 function toggleSelected(cardId) {
