@@ -114,30 +114,10 @@ h2 {
   margin-top: 28px;
 }
 
-.setup-form label {
-  font-weight: 800;
-}
-
-.setup-form select,
 .setup-form button {
   width: 100%;
   height: 48px;
   padding: 0 14px;
-}
-
-.checkbox-field {
-  display: flex;
-  min-height: 44px;
-  align-items: center;
-  gap: 10px;
-  color: var(--muted);
-  font-weight: 800;
-}
-
-.checkbox-field input {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--accent);
 }
 
 .setup-form button,
@@ -284,13 +264,6 @@ h2 {
   font-weight: 800;
 }
 
-.meld__head button {
-  width: 32px;
-  min-height: 32px;
-  padding: 0;
-  font-size: 1.1rem;
-}
-
 .meld__cards,
 .hand {
   display: flex;
@@ -328,6 +301,18 @@ h2 {
   border-color: #b99038;
   background:
     linear-gradient(145deg, #fff7d8, #ead39a);
+}
+
+.card.is-computer-played {
+  border-color: #2d7b83;
+  background:
+    linear-gradient(145deg, #e7fbf4, #a8ded8);
+  box-shadow: 0 7px 16px rgba(18, 25, 21, 0.18), 0 0 0 3px rgba(45, 123, 131, 0.2);
+}
+
+.card.is-computer-played.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 10px 18px rgba(18, 25, 21, 0.22), 0 0 0 3px rgba(217, 95, 58, 0.32);
 }
 
 .card.can-take-back::after {

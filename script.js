@@ -31,14 +31,13 @@ const state = {
   returnableCardIds: new Set(),
   cardsPlayedThisTurn: 0,
   lastDrawnCardId: null,
+  computerPlayedCardIds: new Set(),
   winner: null,
 };
 
 const els = {
   setup: document.querySelector("#setup"),
   setupForm: document.querySelector("#setupForm"),
-  playerCount: document.querySelector("#playerCount"),
-  computerPlayer: document.querySelector("#computerPlayer"),
   game: document.querySelector("#game"),
   turnTitle: document.querySelector("#turnTitle"),
   statusGrid: document.querySelector("#statusGrid"),
@@ -86,18 +85,17 @@ function shuffle(cards) {
   return shuffled;
 }
 
-function startGame(playerCount, hasComputerPlayer = false) {
-  state.players = Array.from({ length: playerCount }, (_, index) => ({
-    id: index,
-    name: hasComputerPlayer && index === 1 ? "Computer" : `Player ${index + 1}`,
-    isComputer: hasComputerPlayer && index === 1,
-    hand: [],
-  }));
+function startGame() {
+  state.players = [
+    { id: 0, name: "You", isComputer: false, hand: [] },
+    { id: 1, name: "Computer", isComputer: true, hand: [] },
+  ];
   state.deck = buildDeck();
   state.table = [];
   state.currentPlayer = 0;
   state.selected.clear();
   state.returnableCardIds.clear();
+  state.computerPlayedCardIds.clear();
   state.cardsPlayedThisTurn = 0;
   state.lastDrawnCardId = null;
   state.winner = null;
@@ -153,7 +151,10 @@ function cloneGroups(groups) {
 function render() {
   const player = currentPlayer();
   els.turnTitle.textContent = player.name;
-  els.handTitle.textContent = `${player.name}'s hand`;
+  els.handTitle.textContent = player.isComputer ? "Computer's hand" : "Your hand";
+  els.tableHint.textContent = state.computerPlayedCardIds.size > 0
+    ? "Cards the computer just played are highlighted."
+    : "Select cards, then use a table action.";
   els.statusGrid.innerHTML = "";
 
   state.players.forEach((p, index) => {
@@ -208,12 +209,10 @@ function renderGroup(group, groupIndex) {
   groupEl.innerHTML = `
     <div class="meld__head">
       <span>${validation.label}</span>
-      <button type="button" data-remove-group="${group.id}" aria-label="Remove empty group">×</button>
     </div>
     <div class="meld__cards"></div>
     <div class="meld__actions">
       <button type="button" data-add-to-group="${group.id}">Add selected</button>
-      <button type="button" data-sort-run="${group.id}">Sort run</button>
     </div>
   `;
 
@@ -226,17 +225,20 @@ function renderCard(card, zone, groupIndex = null) {
   const button = document.createElement("button");
   const canTakeBack = zone === "table" && state.returnableCardIds.has(card.id);
   const justDrawn = zone === "hand" && state.lastDrawnCardId === card.id;
+  const computerPlayed = zone === "table" && state.computerPlayedCardIds.has(card.id);
   button.type = "button";
   button.className = [
     "card",
     `card--${card.color}`,
     state.selected.has(card.id) ? "is-selected" : "",
     justDrawn ? "is-just-drawn" : "",
+    computerPlayed ? "is-computer-played" : "",
     canTakeBack ? "can-take-back" : "",
   ].filter(Boolean).join(" ");
   button.dataset.cardId = card.id;
   button.dataset.zone = zone;
   if (canTakeBack) button.title = "Played this turn";
+  else if (computerPlayed) button.title = "Played by the computer last turn";
   if (groupIndex !== null) button.dataset.groupIndex = String(groupIndex);
   button.innerHTML = `
     <span class="card__corner">${card.rank}<small>${card.suitSymbol}</small></span>
@@ -283,9 +285,10 @@ function moveSelectedToGroup(groupId) {
   const targetGroup = state.table.find((group) => group.id === groupId);
   if (!targetGroup) return;
 
+  clearComputerPlayHighlight();
   const playedFromHand = selectedFromHandCount();
   removeSelectedFromOrigins(selected);
-  targetGroup.cards.push(...selected.map((entry) => entry.card));
+  targetGroup.cards = orderGroupCards([...targetGroup.cards, ...selected.map((entry) => entry.card)]);
   state.cardsPlayedThisTurn += playedFromHand;
   state.selected.clear();
   removeEmptyGroups();
@@ -296,11 +299,12 @@ function moveSelectedToGroup(groupId) {
 function createGroupFromSelected() {
   const selected = getSelectedCards();
   if (selected.length === 0) return;
+  clearComputerPlayHighlight();
   const playedFromHand = selectedFromHandCount();
   removeSelectedFromOrigins(selected);
   state.table.push({
     id: crypto.randomUUID(),
-    cards: selected.map((entry) => entry.card),
+    cards: orderGroupCards(selected.map((entry) => entry.card)),
   });
   state.cardsPlayedThisTurn += playedFromHand;
   state.selected.clear();
@@ -317,6 +321,7 @@ function takeBackSelectedCards() {
   }
 
   removeSelectedFromOrigins(selected);
+  clearComputerPlayHighlight();
   currentPlayer().hand.push(...selected.map((entry) => entry.card));
   state.cardsPlayedThisTurn = Math.max(0, state.cardsPlayedThisTurn - selected.length);
   state.selected.clear();
@@ -338,6 +343,7 @@ function removeEmptyGroups() {
 }
 
 function restoreTurn() {
+  clearComputerPlayHighlight();
   state.deck = [...state.turnStart.deck];
   currentPlayer().hand = [...state.turnStart.hand];
   state.table = cloneGroups(state.turnStart.table);
@@ -361,6 +367,7 @@ function drawCard() {
     setMessage("The deck is empty.", "bad");
     return;
   }
+  clearComputerPlayHighlight();
   const drawnCard = state.deck.pop();
   player.hand.push(drawnCard);
   state.returnableCardIds.add(drawnCard.id);
@@ -381,8 +388,26 @@ function endTurn() {
   }
   state.currentPlayer = (state.currentPlayer + 1) % state.players.length;
   captureTurnStart();
+  if (currentPlayer().isComputer) {
+    freezeVisibleControls();
+    setMessage("Computer is thinking.", "warn");
+    queueComputerTurn();
+    return;
+  }
   render();
   queueComputerTurn();
+}
+
+function freezeVisibleControls() {
+  els.drawBtn.disabled = true;
+  els.endTurnBtn.disabled = true;
+  els.newGroupBtn.disabled = true;
+  els.takeBackBtn.disabled = true;
+  els.restoreBtn.disabled = true;
+}
+
+function clearComputerPlayHighlight() {
+  state.computerPlayedCardIds.clear();
 }
 
 function validateTable(groups) {
@@ -521,6 +546,7 @@ function playComputerTurn() {
   const player = currentPlayer();
   let drawn = 0;
 
+  clearComputerPlayHighlight();
   while (!hasAnyPlayableMove(player.hand, state.table) && state.deck.length > 0) {
     const drawnCard = state.deck.pop();
     player.hand.push(drawnCard);
@@ -530,7 +556,6 @@ function playComputerTurn() {
   }
 
   sortHands();
-  if (drawn > 0) render();
 
   let moves = 0;
   while (playBestComputerMove()) {
@@ -556,11 +581,13 @@ function playBestComputerMove() {
   const best = candidates[0];
   if (!best) return false;
   best.play();
+  for (const card of best.handCards) {
+    state.computerPlayedCardIds.add(card.id);
+  }
   state.cardsPlayedThisTurn += best.handCards.length;
   state.selected.clear();
   removeEmptyGroups();
   sortHands();
-  render();
   return true;
 }
 
@@ -713,14 +740,6 @@ function orderGroupCards(cards) {
   return runOrder || [...cards].sort(compareCards);
 }
 
-function sortRun(groupId) {
-  const group = state.table.find((candidate) => candidate.id === groupId);
-  if (!group) return;
-  const sorted = bestRunOrder(group.cards);
-  if (sorted) group.cards = sorted;
-  render();
-}
-
 function bestRunOrder(cards) {
   if (cards.length < 2) return [...cards];
   if (!cards.every((card) => card.suit === cards[0].suit)) return null;
@@ -744,7 +763,7 @@ function sameTable(a, b) {
 
 els.setupForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  startGame(Number(els.playerCount.value), els.computerPlayer.checked);
+  startGame();
 });
 
 els.hand.addEventListener("click", (event) => {
@@ -757,20 +776,10 @@ els.hand.addEventListener("click", (event) => {
 els.melds.addEventListener("click", (event) => {
   if (currentPlayer().isComputer) return;
   const addButton = event.target.closest("[data-add-to-group]");
-  const removeButton = event.target.closest("[data-remove-group]");
-  const sortButton = event.target.closest("[data-sort-run]");
   const cardEl = event.target.closest("[data-card-id]");
 
   if (addButton) {
     moveSelectedToGroup(addButton.dataset.addToGroup);
-  } else if (removeButton) {
-    const group = state.table.find((candidate) => candidate.id === removeButton.dataset.removeGroup);
-    if (group && group.cards.length === 0) {
-      state.table = state.table.filter((candidate) => candidate.id !== group.id);
-      render();
-    }
-  } else if (sortButton) {
-    sortRun(sortButton.dataset.sortRun);
   } else if (cardEl) {
     toggleSelected(cardEl.dataset.cardId);
   }

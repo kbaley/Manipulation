@@ -18,13 +18,13 @@ http://127.0.0.1:4173/
 
 ## Rules
 
-Manipulation is played with two standard 52-card decks and no jokers. This prototype supports two to four players, with an optional computer player in the Player 2 seat.
+Manipulation is played with two standard 52-card decks and no jokers. This prototype is always a human player against a computer opponent.
 
 ### Setup
 
 - Shuffle both decks together.
 - Deal three cards to each player.
-- Player 1 takes the first turn.
+- The human player takes the first turn.
 
 ### Goal
 
@@ -56,8 +56,8 @@ Cards played or drawn during the current turn can be taken back before the turn 
 ## Current Features
 
 - Two standard 52-card decks
-- Two to four local hot-seat players
-- Optional Player 2 computer opponent that draws only when forced, builds melds, adds to table groups, and performs simple legal table splits
+- Human vs. computer play
+- Computer opponent that draws only when forced, builds melds, adds to table groups, and performs simple legal table splits
 - Three-card opening deal
 - Draw-until-playable turn flow
 - Table manipulation with validation for same-rank sets and looping suited runs
@@ -67,4 +67,4 @@ Cards played or drawn during the current turn can be taken back before the turn 
 
 ## Notes
 
-This is currently a local browser prototype. True online multiplayer would need a server, rooms, turn synchronization, and private per-player hands.
+This is currently a local browser prototype. Adding online play would need a server, rooms, turn synchronization, and private per-player hands.
