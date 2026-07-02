@@ -30,6 +30,7 @@ const state = {
   turnStart: null,
   returnableCardIds: new Set(),
   cardsPlayedThisTurn: 0,
+  lastDrawnCardId: null,
   winner: null,
 };
 
@@ -37,6 +38,7 @@ const els = {
   setup: document.querySelector("#setup"),
   setupForm: document.querySelector("#setupForm"),
   playerCount: document.querySelector("#playerCount"),
+  computerPlayer: document.querySelector("#computerPlayer"),
   game: document.querySelector("#game"),
   turnTitle: document.querySelector("#turnTitle"),
   statusGrid: document.querySelector("#statusGrid"),
@@ -84,10 +86,11 @@ function shuffle(cards) {
   return shuffled;
 }
 
-function startGame(playerCount) {
+function startGame(playerCount, hasComputerPlayer = false) {
   state.players = Array.from({ length: playerCount }, (_, index) => ({
     id: index,
-    name: `Player ${index + 1}`,
+    name: hasComputerPlayer && index === 1 ? "Computer" : `Player ${index + 1}`,
+    isComputer: hasComputerPlayer && index === 1,
     hand: [],
   }));
   state.deck = buildDeck();
@@ -96,6 +99,7 @@ function startGame(playerCount) {
   state.selected.clear();
   state.returnableCardIds.clear();
   state.cardsPlayedThisTurn = 0;
+  state.lastDrawnCardId = null;
   state.winner = null;
 
   for (let cardNumber = 0; cardNumber < 3; cardNumber += 1) {
@@ -110,6 +114,7 @@ function startGame(playerCount) {
   els.game.classList.remove("hidden");
   els.winnerModal.classList.add("hidden");
   render();
+  queueComputerTurn();
 }
 
 function captureTurnStart() {
@@ -120,6 +125,7 @@ function captureTurnStart() {
   };
   state.returnableCardIds = new Set(currentPlayer().hand.map((card) => card.id));
   state.cardsPlayedThisTurn = 0;
+  state.lastDrawnCardId = null;
   state.selected.clear();
 }
 
@@ -175,13 +181,16 @@ function render() {
   });
 
   const validation = validateTable(state.table);
-  els.endTurnBtn.disabled = state.cardsPlayedThisTurn === 0 || !validation.ok;
-  els.drawBtn.disabled = state.cardsPlayedThisTurn > 0 || state.deck.length === 0 || hasAnyPlayableMove(player.hand, state.table);
-  els.newGroupBtn.disabled = getSelectedCards().length === 0;
-  els.takeBackBtn.disabled = getReturnableSelectedCards().length === 0;
-  els.restoreBtn.disabled = state.cardsPlayedThisTurn === 0 && state.selected.size === 0 && sameTable(state.table, state.turnStart.table);
+  const locked = player.isComputer || state.winner;
+  els.endTurnBtn.disabled = locked || state.cardsPlayedThisTurn === 0 || !validation.ok;
+  els.drawBtn.disabled = locked || state.cardsPlayedThisTurn > 0 || state.deck.length === 0 || hasAnyPlayableMove(player.hand, state.table);
+  els.newGroupBtn.disabled = locked || getSelectedCards().length === 0;
+  els.takeBackBtn.disabled = locked || getReturnableSelectedCards().length === 0;
+  els.restoreBtn.disabled = locked || (state.cardsPlayedThisTurn === 0 && state.selected.size === 0 && sameTable(state.table, state.turnStart.table));
 
-  if (!validation.ok) {
+  if (player.isComputer) {
+    setMessage("Computer is thinking.", "warn");
+  } else if (!validation.ok) {
     setMessage(validation.reason, "bad");
   } else if (state.cardsPlayedThisTurn > 0) {
     setMessage("Valid table. You can keep manipulating or end your turn.", "good");
@@ -216,11 +225,13 @@ function renderGroup(group, groupIndex) {
 function renderCard(card, zone, groupIndex = null) {
   const button = document.createElement("button");
   const canTakeBack = zone === "table" && state.returnableCardIds.has(card.id);
+  const justDrawn = zone === "hand" && state.lastDrawnCardId === card.id;
   button.type = "button";
   button.className = [
     "card",
     `card--${card.color}`,
     state.selected.has(card.id) ? "is-selected" : "",
+    justDrawn ? "is-just-drawn" : "",
     canTakeBack ? "can-take-back" : "",
   ].filter(Boolean).join(" ");
   button.dataset.cardId = card.id;
@@ -333,6 +344,7 @@ function restoreTurn() {
   state.returnableCardIds = new Set(currentPlayer().hand.map((card) => card.id));
   state.selected.clear();
   state.cardsPlayedThisTurn = 0;
+  state.lastDrawnCardId = null;
   sortHands();
   render();
 }
@@ -352,6 +364,7 @@ function drawCard() {
   const drawnCard = state.deck.pop();
   player.hand.push(drawnCard);
   state.returnableCardIds.add(drawnCard.id);
+  state.lastDrawnCardId = drawnCard.id;
   sortHands();
   render();
 }
@@ -369,6 +382,7 @@ function endTurn() {
   state.currentPlayer = (state.currentPlayer + 1) % state.players.length;
   captureTurnStart();
   render();
+  queueComputerTurn();
 }
 
 function validateTable(groups) {
@@ -473,8 +487,12 @@ function canSplitKindWithHand(hand, table) {
 
 function canPartitionIntoValidGroups(cards, groupCount) {
   if (groupCount !== 2) return false;
-  const ids = cards.map((card) => card.id);
-  const maxMask = 1 << ids.length;
+  return Boolean(partitionIntoValidGroups(cards, groupCount));
+}
+
+function partitionIntoValidGroups(cards, groupCount) {
+  if (groupCount !== 2) return null;
+  const maxMask = 1 << cards.length;
   for (let mask = 1; mask < maxMask - 1; mask += 1) {
     const first = [];
     const second = [];
@@ -483,14 +501,216 @@ function canPartitionIntoValidGroups(cards, groupCount) {
       else second.push(card);
     });
     if (first.length >= 3 && second.length >= 3 && validateGroup(first).ok && validateGroup(second).ok) {
-      return true;
+      return [orderGroupCards(first), orderGroupCards(second)];
     }
   }
-  return false;
+  return null;
 }
 
 function nextValue(value) {
   return value === 13 ? 1 : value + 1;
+}
+
+function queueComputerTurn() {
+  if (!currentPlayer().isComputer || state.winner) return;
+  window.setTimeout(playComputerTurn, 650);
+}
+
+function playComputerTurn() {
+  if (!currentPlayer().isComputer || state.winner) return;
+  const player = currentPlayer();
+  let drawn = 0;
+
+  while (!hasAnyPlayableMove(player.hand, state.table) && state.deck.length > 0) {
+    const drawnCard = state.deck.pop();
+    player.hand.push(drawnCard);
+    state.returnableCardIds.add(drawnCard.id);
+    state.lastDrawnCardId = drawnCard.id;
+    drawn += 1;
+  }
+
+  sortHands();
+  if (drawn > 0) render();
+
+  let moves = 0;
+  while (playBestComputerMove()) {
+    moves += 1;
+  }
+
+  const validation = validateTable(state.table);
+  if (state.cardsPlayedThisTurn > 0 && validation.ok) {
+    window.setTimeout(endTurn, Math.max(450, 850 - moves * 80));
+  } else {
+    setMessage("Computer has no legal play.", "warn");
+  }
+}
+
+function playBestComputerMove() {
+  const candidates = [
+    ...getComputerJoinCandidates(),
+    ...getComputerSplitRunCandidates(),
+    ...getComputerSplitKindCandidates(),
+    ...getComputerNewMeldCandidates(),
+  ];
+  candidates.sort(compareComputerMoves);
+  const best = candidates[0];
+  if (!best) return false;
+  best.play();
+  state.cardsPlayedThisTurn += best.handCards.length;
+  state.selected.clear();
+  removeEmptyGroups();
+  sortHands();
+  render();
+  return true;
+}
+
+function compareComputerMoves(a, b) {
+  return b.handCards.length - a.handCards.length ||
+    b.score - a.score ||
+    a.label.localeCompare(b.label);
+}
+
+function getComputerJoinCandidates() {
+  const player = currentPlayer();
+  const candidates = [];
+  for (const card of player.hand) {
+    state.table.forEach((group) => {
+      if (isKind(group.cards) && group.cards.length === 3 && group.cards[0].value === card.value) {
+        candidates.push({
+          label: "join-kind",
+          score: 18,
+          handCards: [card],
+          play: () => {
+            removeCardsFromHand([card]);
+            group.cards.push(card);
+          },
+        });
+      } else if (isRun(group.cards) && group.cards[0].suit === card.suit && isRun([...group.cards, card])) {
+        candidates.push({
+          label: "join-run",
+          score: 16,
+          handCards: [card],
+          play: () => {
+            removeCardsFromHand([card]);
+            group.cards = orderGroupCards([...group.cards, card]);
+          },
+        });
+      }
+    });
+  }
+  return candidates;
+}
+
+function getComputerSplitRunCandidates() {
+  const player = currentPlayer();
+  const candidates = [];
+  for (const card of player.hand) {
+    state.table.forEach((group, groupIndex) => {
+      if (!isRun(group.cards) || group.cards[0].suit !== card.suit) return;
+      if (!group.cards.some((tableCard) => tableCard.value === card.value)) return;
+      const partition = partitionIntoValidGroups([...group.cards, card], 2);
+      if (!partition) return;
+      candidates.push({
+        label: "split-run",
+        score: 22,
+        handCards: [card],
+        play: () => {
+          removeCardsFromHand([card]);
+          state.table.splice(
+            groupIndex,
+            1,
+            { id: group.id, cards: partition[0] },
+            { id: crypto.randomUUID(), cards: partition[1] },
+          );
+        },
+      });
+    });
+  }
+  return candidates;
+}
+
+function getComputerSplitKindCandidates() {
+  const player = currentPlayer();
+  const candidates = [];
+  state.table.forEach((group, groupIndex) => {
+    if (!isKind(group.cards) || group.cards.length !== 4) return;
+    const matchingCards = player.hand.filter((card) => card.value === group.cards[0].value).slice(0, 2);
+    if (matchingCards.length < 2) return;
+    const firstGroup = orderGroupCards([group.cards[0], group.cards[1], matchingCards[0]]);
+    const secondGroup = orderGroupCards([group.cards[2], group.cards[3], matchingCards[1]]);
+    candidates.push({
+      label: "split-kind",
+      score: 32,
+      handCards: matchingCards,
+      play: () => {
+        removeCardsFromHand(matchingCards);
+        state.table.splice(
+          groupIndex,
+          1,
+          { id: group.id, cards: firstGroup },
+          { id: crypto.randomUUID(), cards: secondGroup },
+        );
+      },
+    });
+  });
+  return candidates;
+}
+
+function getComputerNewMeldCandidates() {
+  return [
+    ...getComputerKindCandidates(),
+    ...getComputerRunCandidates(),
+  ].map((cards) => ({
+    label: "new-meld",
+    score: cards.length * 10,
+    handCards: cards,
+    play: () => {
+      removeCardsFromHand(cards);
+      state.table.push({ id: crypto.randomUUID(), cards: orderGroupCards(cards) });
+    },
+  }));
+}
+
+function getComputerKindCandidates() {
+  const byValue = new Map();
+  for (const card of currentPlayer().hand) {
+    if (!byValue.has(card.value)) byValue.set(card.value, []);
+    byValue.get(card.value).push(card);
+  }
+  return [...byValue.values()]
+    .filter((cards) => cards.length >= 3)
+    .map((cards) => cards.slice(0, Math.min(4, cards.length)));
+}
+
+function getComputerRunCandidates() {
+  const candidates = [];
+  for (const suit of SUITS) {
+    const suitCards = currentPlayer().hand.filter((card) => card.suit === suit.id);
+    const cardsByValue = new Map();
+    for (const card of suitCards) {
+      if (!cardsByValue.has(card.value)) cardsByValue.set(card.value, card);
+    }
+    for (const startValue of cardsByValue.keys()) {
+      const run = [];
+      let value = startValue;
+      while (cardsByValue.has(value) && !run.some((card) => card.value === value)) {
+        run.push(cardsByValue.get(value));
+        value = nextValue(value);
+      }
+      if (run.length >= 3) candidates.push([...run]);
+    }
+  }
+  return candidates;
+}
+
+function removeCardsFromHand(cards) {
+  const ids = new Set(cards.map((card) => card.id));
+  currentPlayer().hand = currentPlayer().hand.filter((card) => !ids.has(card.id));
+}
+
+function orderGroupCards(cards) {
+  const runOrder = bestRunOrder(cards);
+  return runOrder || [...cards].sort(compareCards);
 }
 
 function sortRun(groupId) {
@@ -524,16 +744,18 @@ function sameTable(a, b) {
 
 els.setupForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  startGame(Number(els.playerCount.value));
+  startGame(Number(els.playerCount.value), els.computerPlayer.checked);
 });
 
 els.hand.addEventListener("click", (event) => {
+  if (currentPlayer().isComputer) return;
   const cardEl = event.target.closest("[data-card-id]");
   if (!cardEl) return;
   toggleSelected(cardEl.dataset.cardId);
 });
 
 els.melds.addEventListener("click", (event) => {
+  if (currentPlayer().isComputer) return;
   const addButton = event.target.closest("[data-add-to-group]");
   const removeButton = event.target.closest("[data-remove-group]");
   const sortButton = event.target.closest("[data-sort-run]");
