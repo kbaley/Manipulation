@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Manipulation</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="setup" id="setup">
+        <div class="setup__panel">
+          <p class="eyebrow">Rummy-family card game</p>
+          <h1>Manipulation</h1>
+          <p class="intro">
+            Build sets and looping suited runs, rearrange the table, and race to empty your hand.
+          </p>
+          <form id="setupForm" class="setup-form">
+            <label for="playerCount">Players</label>
+            <select id="playerCount" name="playerCount">
+              <option value="2">2 players</option>
+              <option value="3">3 players</option>
+              <option value="4">4 players</option>
+            </select>
+            <button type="submit">Start game</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="game hidden" id="game">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Current turn</p>
+            <h1 id="turnTitle">Player 1</h1>
+          </div>
+          <div class="status-grid" id="statusGrid"></div>
+        </header>
+
+        <section class="table-area" aria-label="Table groups">
+          <div class="section-head">
+            <div>
+              <h2>Table</h2>
+              <p id="tableHint">Select cards, then use a table action.</p>
+            </div>
+            <div class="actions">
+              <button id="newGroupBtn" type="button">New group</button>
+              <button id="takeBackBtn" type="button">Take back</button>
+              <button id="restoreBtn" type="button">Restore turn</button>
+            </div>
+          </div>
+          <div class="melds" id="melds"></div>
+        </section>
+
+        <section class="hand-area" aria-label="Current player's hand">
+          <div class="section-head">
+            <div>
+              <h2 id="handTitle">Your hand</h2>
+              <p id="message" class="message">Play at least one card to end your turn.</p>
+            </div>
+            <div class="actions">
+              <button id="drawBtn" type="button">Draw</button>
+              <button id="endTurnBtn" type="button">End turn</button>
+            </div>
+          </div>
+          <div class="hand" id="hand"></div>
+        </section>
+      </section>
+
+      <section class="modal hidden" id="winnerModal" role="dialog" aria-modal="true">
+        <div class="modal__panel">
+          <p class="eyebrow">Game over</p>
+          <h2 id="winnerText">Player 1 wins</h2>
+          <button id="playAgainBtn" type="button">Play again</button>
+        </div>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
