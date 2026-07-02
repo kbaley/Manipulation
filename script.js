@@ -161,8 +161,7 @@ function render() {
     : "Select cards, then use a table action.";
   const validation = validateTable(state.table);
   const locked = player.isComputer || state.winner;
-  const hasPlayableMove = !locked && hasAnyPlayableMove(player.hand, state.table);
-  if (locked || state.cardsPlayedThisTurn > 0 || !hasPlayableMove) {
+  if (locked) {
     state.suggestedMove = null;
   }
   els.statusGrid.innerHTML = "";
@@ -192,8 +191,8 @@ function render() {
   });
 
   els.endTurnBtn.disabled = locked || state.cardsPlayedThisTurn === 0 || !validation.ok;
-  els.drawBtn.disabled = locked || state.cardsPlayedThisTurn > 0 || state.deck.length === 0 || hasPlayableMove;
-  els.suggestMoveBtn.disabled = locked || state.cardsPlayedThisTurn > 0 || !hasPlayableMove;
+  els.drawBtn.disabled = locked || state.cardsPlayedThisTurn > 0 || state.deck.length === 0;
+  els.suggestMoveBtn.disabled = locked;
   els.suggestMoveBtn.textContent = state.suggestedMove ? "Hide move" : "Show move";
   els.newGroupBtn.disabled = locked || getSelectedCards().length === 0;
   els.takeBackBtn.disabled = locked || getReturnableSelectedCards().length === 0;
@@ -205,11 +204,9 @@ function render() {
   } else if (!validation.ok) {
     setMessage(validation.reason, "bad");
   } else if (state.cardsPlayedThisTurn > 0) {
-    setMessage("Valid table. You can keep manipulating or end your turn.", "good");
-  } else if (hasPlayableMove) {
-    setMessage("You have a playable card or meld, so you must play before drawing.", "warn");
+    setMessage("Valid table. You can keep manipulating, check for another move, or end your turn.", "good");
   } else {
-    setMessage("No play is available. Draw until you can play.", "warn");
+    setMessage("Play cards, draw, or use Show move to check for a play.", "warn");
   }
 }
 
@@ -281,7 +278,7 @@ function renderMoveHint() {
     ).join("")}</div>`;
   els.moveHint.classList.remove("hidden");
   els.moveHint.innerHTML = `
-    <strong>Suggested move</strong>
+    <strong>${state.suggestedMove.noMove ? "Move check" : "Suggested move"}</strong>
     <p>${state.suggestedMove.text}</p>
     ${preview}
   `;
@@ -398,8 +395,8 @@ function drawCard() {
   const player = currentPlayer();
   if (state.cardsPlayedThisTurn > 0) return;
   if (hasAnyPlayableMove(player.hand, state.table)) {
-    setMessage("You can make a play, so drawing is not allowed.", "bad");
     render();
+    setMessage("You can make a play, so drawing is not allowed.", "bad");
     return;
   }
   if (state.deck.length === 0) {
@@ -1137,11 +1134,22 @@ function toggleSuggestedMove() {
 
   const suggestion = findSuggestedMove(currentPlayer().hand, state.table);
   if (!suggestion) {
-    setMessage("No specific move could be found.", "bad");
+    state.suggestedMove = buildNoMoveSuggestion();
+    render();
     return;
   }
   state.suggestedMove = suggestion;
   render();
+}
+
+function buildNoMoveSuggestion() {
+  return {
+    text: "No move available.",
+    handCardIds: new Set(),
+    tableCardIds: new Set(),
+    melds: [],
+    noMove: true,
+  };
 }
 
 els.newGroupBtn.addEventListener("click", createGroupFromSelected);
