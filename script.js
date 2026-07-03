@@ -105,7 +105,7 @@ function startGame() {
   ];
   state.deck = buildDeck();
   state.table = [];
-  state.currentPlayer = 0;
+  state.currentPlayer = Math.floor(Math.random() * state.players.length);
   state.selected.clear();
   state.returnableCardIds.clear();
   state.computerPlayedCardIds.clear();
@@ -126,7 +126,16 @@ function startGame() {
   els.game.classList.remove("hidden");
   els.winnerModal.classList.add("hidden");
   render();
+  setOpeningTurnMessage();
   queueComputerTurn();
+}
+
+function setOpeningTurnMessage() {
+  if (currentPlayer().isComputer) {
+    setMessage("Computer starts first.", "warn");
+    return;
+  }
+  setMessage("You start first.", "good");
 }
 
 function captureTurnStart() {
