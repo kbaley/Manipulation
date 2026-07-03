@@ -53,10 +53,24 @@
               <h2 id="handTitle">Your hand</h2>
               <p id="message" class="message">Play at least one card to end your turn.</p>
             </div>
-            <div class="actions">
-              <button id="suggestMoveBtn" type="button">Show move</button>
-              <button id="drawBtn" type="button">Draw</button>
-              <button id="endTurnBtn" type="button">End turn</button>
+            <div class="hand-tools">
+              <div class="move-alert">
+                <div id="moveAvailableIndicator" class="move-available hidden" aria-live="polite">
+                  Move available
+                </div>
+                <label class="switch">
+                  <input id="moveAlertToggle" type="checkbox" />
+                  <span class="switch__track" aria-hidden="true">
+                    <span class="switch__thumb"></span>
+                  </span>
+                  <span>Move alert</span>
+                </label>
+              </div>
+              <div class="actions">
+                <button id="suggestMoveBtn" type="button">Show move</button>
+                <button id="drawBtn" type="button">Draw</button>
+                <button id="endTurnBtn" type="button">End turn</button>
+              </div>
             </div>
           </div>
           <div class="move-hint hidden" id="moveHint" aria-live="polite"></div>

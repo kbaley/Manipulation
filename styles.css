@@ -244,6 +244,106 @@ h2 {
   justify-content: flex-end;
 }
 
+.hand-tools {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.move-alert {
+  display: flex;
+  min-height: 34px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.switch {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.switch__track {
+  display: flex;
+  width: 48px;
+  height: 28px;
+  align-items: center;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #e4ded0;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.switch__thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow: 0 2px 4px rgba(18, 25, 21, 0.24);
+  transition: transform 150ms ease;
+}
+
+.switch input:checked + .switch__track {
+  border-color: var(--good);
+  background: var(--good);
+}
+
+.switch input:checked + .switch__track .switch__thumb {
+  transform: translateX(20px);
+}
+
+.switch input:focus-visible + .switch__track {
+  outline: 3px solid rgba(217, 95, 58, 0.32);
+  outline-offset: 2px;
+}
+
+.move-available {
+  display: inline-flex;
+  width: 128px;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid rgba(159, 107, 19, 0.34);
+  border-radius: 999px;
+  color: var(--warn);
+  background: rgba(255, 248, 220, 0.92);
+  font-size: 0.82rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.move-available::before {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--warn);
+  box-shadow: 0 0 0 3px rgba(159, 107, 19, 0.16);
+  content: "";
+}
+
+.move-available.hidden {
+  visibility: hidden;
+}
+
 .actions button,
 .meld__actions button {
   padding: 0 12px;
@@ -567,6 +667,14 @@ h2 {
 
   .actions {
     justify-content: start;
+  }
+
+  .hand-tools {
+    justify-items: start;
+  }
+
+  .move-alert {
+    justify-content: flex-start;
   }
 
   .card {

@@ -36,6 +36,7 @@ const state = {
   computerPlayedCardIds: new Set(),
   suggestedMove: null,
   draggingCardId: null,
+  moveIndicatorEnabled: false,
   winner: null,
 };
 
@@ -54,6 +55,8 @@ const els = {
   drawBtn: document.querySelector("#drawBtn"),
   endTurnBtn: document.querySelector("#endTurnBtn"),
   suggestMoveBtn: document.querySelector("#suggestMoveBtn"),
+  moveAlertToggle: document.querySelector("#moveAlertToggle"),
+  moveAvailableIndicator: document.querySelector("#moveAvailableIndicator"),
   newGroupBtn: document.querySelector("#newGroupBtn"),
   takeBackBtn: document.querySelector("#takeBackBtn"),
   restoreBtn: document.querySelector("#restoreBtn"),
@@ -168,6 +171,7 @@ function render() {
     : "Select cards, then use a table action.";
   const validation = validateTable(state.table);
   const locked = player.isComputer || state.winner;
+  const moveAvailable = !locked && hasAnyPlayableMove(player.hand, state.table);
   if (locked) {
     state.suggestedMove = null;
   }
@@ -201,6 +205,9 @@ function render() {
   els.drawBtn.disabled = locked || state.cardsPlayedThisTurn > 0 || state.deck.length === 0;
   els.suggestMoveBtn.disabled = locked;
   els.suggestMoveBtn.textContent = state.suggestedMove ? "Hide move" : "Show move";
+  els.moveAlertToggle.checked = state.moveIndicatorEnabled;
+  els.moveAlertToggle.disabled = Boolean(state.winner);
+  els.moveAvailableIndicator.classList.toggle("hidden", !state.moveIndicatorEnabled || !moveAvailable);
   els.newGroupBtn.disabled = locked || getSelectedCards().length === 0;
   els.takeBackBtn.disabled = locked || getReturnableSelectedCards().length === 0;
   els.restoreBtn.disabled = locked || (state.cardsPlayedThisTurn === 0 && state.selected.size === 0 && sameTable(state.table, state.turnStart.table));
@@ -1271,6 +1278,10 @@ els.restoreBtn.addEventListener("click", restoreTurn);
 els.drawBtn.addEventListener("click", drawCard);
 els.endTurnBtn.addEventListener("click", endTurn);
 els.suggestMoveBtn.addEventListener("click", toggleSuggestedMove);
+els.moveAlertToggle.addEventListener("change", () => {
+  state.moveIndicatorEnabled = els.moveAlertToggle.checked;
+  render();
+});
 els.setupRulesBtn.addEventListener("click", openRules);
 els.gameRulesBtn.addEventListener("click", openRules);
 els.closeRulesBtn.addEventListener("click", closeRules);
