@@ -53,6 +53,33 @@ button:disabled {
   opacity: 0.48;
 }
 
+.text-link {
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  color: var(--accent-dark);
+  background: transparent;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.text-link:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.icon-button {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  flex: 0 0 40px;
+  place-items: center;
+  padding: 0;
+  font-size: 1.55rem;
+  line-height: 1;
+}
+
 .app {
   min-height: 100vh;
 }
@@ -106,6 +133,10 @@ h2 {
   color: var(--muted);
   font-size: 1.05rem;
   line-height: 1.55;
+}
+
+.setup__panel .text-link {
+  margin-top: 2px;
 }
 
 .setup-form {
@@ -423,12 +454,20 @@ h2 {
   gap: 6px;
 }
 
-.move-hint__groups span {
+.move-hint__group {
   padding: 6px 8px;
   border: 1px solid rgba(201, 139, 24, 0.35);
   border-radius: 8px;
   background: rgba(255, 253, 246, 0.78);
   font-weight: 800;
+}
+
+.move-hint__card {
+  font-weight: 800;
+}
+
+.move-hint__card--red {
+  color: #b7252a;
 }
 
 .modal {
@@ -444,14 +483,73 @@ h2 {
   text-align: center;
 }
 
+.rules-panel {
+  display: grid;
+  width: min(640px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  gap: 18px;
+  overflow: auto;
+  text-align: left;
+}
+
+.rules-panel__head {
+  display: flex;
+  gap: 16px;
+  align-items: start;
+  justify-content: space-between;
+}
+
+.rules-panel h2 {
+  margin: 0;
+  font-size: 1.9rem;
+}
+
+.rules-content {
+  display: grid;
+  gap: 10px;
+}
+
+.rules-content h3 {
+  margin: 8px 0 0;
+  font-size: 1rem;
+}
+
+.rules-content p,
+.rules-content ul {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.rules-content ul {
+  padding-left: 1.25rem;
+}
+
+.rules-content li + li {
+  margin-top: 6px;
+}
+
+.rules-content strong {
+  color: var(--ink);
+}
+
 .modal__panel h2 {
   margin-bottom: 24px;
   font-size: 2.4rem;
 }
 
+.rules-panel h2 {
+  margin-bottom: 0;
+  font-size: 1.9rem;
+}
+
 .modal__panel button {
   width: 100%;
   max-width: 220px;
+}
+
+.rules-panel .icon-button {
+  max-width: none;
 }
 
 @media (max-width: 760px) {

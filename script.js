@@ -57,6 +57,10 @@ const els = {
   newGroupBtn: document.querySelector("#newGroupBtn"),
   takeBackBtn: document.querySelector("#takeBackBtn"),
   restoreBtn: document.querySelector("#restoreBtn"),
+  setupRulesBtn: document.querySelector("#setupRulesBtn"),
+  gameRulesBtn: document.querySelector("#gameRulesBtn"),
+  rulesModal: document.querySelector("#rulesModal"),
+  closeRulesBtn: document.querySelector("#closeRulesBtn"),
   winnerModal: document.querySelector("#winnerModal"),
   winnerText: document.querySelector("#winnerText"),
   playAgainBtn: document.querySelector("#playAgainBtn"),
@@ -279,12 +283,12 @@ function renderMoveHint() {
   const preview = state.suggestedMove.melds.length === 0
     ? ""
     : `<div class="move-hint__groups">${state.suggestedMove.melds.map((meld) =>
-      `<span>${formatCards(meld)}</span>`
+      `<span class="move-hint__group">${formatCardsHtml(meld)}</span>`
     ).join("")}</div>`;
   els.moveHint.classList.remove("hidden");
   els.moveHint.innerHTML = `
     <strong>${state.suggestedMove.noMove ? "Move check" : "Suggested move"}</strong>
-    <p>${state.suggestedMove.text}</p>
+    <p>${state.suggestedMove.htmlText}</p>
     ${preview}
   `;
 }
@@ -562,6 +566,7 @@ function findNewMeldSuggestion(hand) {
   if (!meld) return null;
   return buildMoveSuggestion({
     text: `Make a new group with ${formatCards(meld)}.`,
+    htmlText: `Make a new group with ${formatCardsHtml(meld)}.`,
     handCards: meld,
     tableCards: [],
     melds: [meld],
@@ -575,6 +580,7 @@ function findJoinSuggestion(hand, table) {
         const meld = orderGroupCards([...group.cards, card]);
         return buildMoveSuggestion({
           text: `Play ${formatCard(card)} onto the ${group.cards[0].rank}s.`,
+          htmlText: `Play ${formatCardHtml(card)} onto the ${group.cards[0].rank}s.`,
           handCards: [card],
           tableCards: group.cards,
           melds: [meld],
@@ -584,6 +590,7 @@ function findJoinSuggestion(hand, table) {
         const meld = orderGroupCards([...group.cards, card]);
         return buildMoveSuggestion({
           text: `Play ${formatCard(card)} onto the run ${formatCards(group.cards)}.`,
+          htmlText: `Play ${formatCardHtml(card)} onto the run ${formatCardsHtml(group.cards)}.`,
           handCards: [card],
           tableCards: group.cards,
           melds: [meld],
@@ -603,6 +610,7 @@ function findSplitRunSuggestion(hand, table) {
       if (!partition) continue;
       return buildMoveSuggestion({
         text: `Play ${formatCard(card)} and split ${formatCards(group.cards)} into two valid runs.`,
+        htmlText: `Play ${formatCardHtml(card)} and split ${formatCardsHtml(group.cards)} into two valid runs.`,
         handCards: [card],
         tableCards: group.cards,
         melds: partition,
@@ -623,6 +631,7 @@ function findSplitKindSuggestion(hand, table) {
     ];
     return buildMoveSuggestion({
       text: `Play ${formatCards(matchingCards)} to split the four ${group.cards[0].rank}s into two groups.`,
+      htmlText: `Play ${formatCardsHtml(matchingCards)} to split the four ${group.cards[0].rank}s into two groups.`,
       handCards: matchingCards,
       tableCards: group.cards,
       melds,
@@ -636,15 +645,17 @@ function findRepartitionSuggestion(hand, table) {
   if (!play) return null;
   return buildMoveSuggestion({
     text: `Play ${formatCards(play.handCards)} and rearrange the highlighted table cards into these valid groups.`,
+    htmlText: `Play ${formatCardsHtml(play.handCards)} and rearrange the highlighted table cards into these valid groups.`,
     handCards: play.handCards,
     tableCards: table.flatMap((group) => group.cards),
     melds: play.melds,
   });
 }
 
-function buildMoveSuggestion({ text, handCards, tableCards, melds }) {
+function buildMoveSuggestion({ text, htmlText, handCards, tableCards, melds }) {
   return {
     text,
+    htmlText,
     handCardIds: new Set(handCards.map((card) => card.id)),
     tableCardIds: new Set(tableCards.map((card) => card.id)),
     melds: melds.map(orderGroupCards),
@@ -1108,6 +1119,15 @@ function formatCards(cards) {
   return orderGroupCards(cards).map(formatCard).join(" ");
 }
 
+function formatCardHtml(card) {
+  const colorClass = card.color === "red" ? " move-hint__card--red" : "";
+  return `<span class="move-hint__card${colorClass}">${formatCard(card)}</span>`;
+}
+
+function formatCardsHtml(cards) {
+  return orderGroupCards(cards).map(formatCardHtml).join(" ");
+}
+
 function orderGroupCards(cards) {
   const runOrder = bestRunOrder(cards);
   return runOrder || [...cards].sort(compareCards);
@@ -1228,11 +1248,21 @@ function toggleSuggestedMove() {
 function buildNoMoveSuggestion() {
   return {
     text: "No move available.",
+    htmlText: "No move available.",
     handCardIds: new Set(),
     tableCardIds: new Set(),
     melds: [],
     noMove: true,
   };
+}
+
+function openRules() {
+  els.rulesModal.classList.remove("hidden");
+  els.closeRulesBtn.focus();
+}
+
+function closeRules() {
+  els.rulesModal.classList.add("hidden");
 }
 
 els.newGroupBtn.addEventListener("click", createGroupFromSelected);
@@ -1241,6 +1271,17 @@ els.restoreBtn.addEventListener("click", restoreTurn);
 els.drawBtn.addEventListener("click", drawCard);
 els.endTurnBtn.addEventListener("click", endTurn);
 els.suggestMoveBtn.addEventListener("click", toggleSuggestedMove);
+els.setupRulesBtn.addEventListener("click", openRules);
+els.gameRulesBtn.addEventListener("click", openRules);
+els.closeRulesBtn.addEventListener("click", closeRules);
+els.rulesModal.addEventListener("click", (event) => {
+  if (event.target === els.rulesModal) closeRules();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !els.rulesModal.classList.contains("hidden")) {
+    closeRules();
+  }
+});
 els.playAgainBtn.addEventListener("click", () => {
   els.winnerModal.classList.add("hidden");
   els.setup.classList.remove("hidden");
