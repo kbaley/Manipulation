@@ -241,11 +241,9 @@ function renderGroup(group, groupIndex) {
   groupEl.innerHTML = `
     <div class="meld__head">
       <span>${validation.label}</span>
-    </div>
-    <div class="meld__cards"></div>
-    <div class="meld__actions">
       <button type="button" data-add-to-group="${group.id}">Add selected</button>
     </div>
+    <div class="meld__cards"></div>
   `;
 
   const cardWrap = groupEl.querySelector(".meld__cards");

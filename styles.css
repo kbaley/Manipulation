@@ -345,7 +345,7 @@ h2 {
 }
 
 .actions button,
-.meld__actions button {
+.meld__head button {
   padding: 0 12px;
 }
 
@@ -368,8 +368,7 @@ h2 {
 
 .meld {
   display: grid;
-  gap: 10px;
-  min-height: 180px;
+  gap: 8px;
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -387,12 +386,16 @@ h2 {
   box-shadow: inset 0 0 0 2px rgba(217, 95, 58, 0.16);
 }
 
-.meld__head,
-.meld__actions {
+.meld__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.meld__head button {
+  min-height: 2rem;
+  white-space: nowrap;
 }
 
 .meld__head span {
@@ -404,10 +407,13 @@ h2 {
 .meld__cards,
 .hand {
   display: flex;
-  min-height: 112px;
   flex-wrap: wrap;
   gap: 8px;
   align-content: start;
+}
+
+.meld__cards {
+  min-height: 104px;
 }
 
 .hand {
