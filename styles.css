@@ -344,8 +344,7 @@ h2 {
   visibility: hidden;
 }
 
-.actions button,
-.meld__head button {
+.actions button {
   padding: 0 12px;
 }
 
@@ -386,16 +385,23 @@ h2 {
   box-shadow: inset 0 0 0 2px rgba(217, 95, 58, 0.16);
 }
 
+.meld.is-add-target {
+  cursor: pointer;
+}
+
+.meld.is-add-target:hover,
+.meld.is-add-target:focus-visible {
+  border-color: var(--accent);
+  background: #fff8e1;
+  box-shadow: inset 0 0 0 2px rgba(217, 95, 58, 0.16);
+  outline: none;
+}
+
 .meld__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-}
-
-.meld__head button {
-  min-height: 2rem;
-  white-space: nowrap;
 }
 
 .meld__head span {

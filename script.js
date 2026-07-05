@@ -320,7 +320,7 @@ function render() {
   els.handTitle.textContent = player.isComputer ? "Computer's hand" : "Your hand";
   els.tableHint.textContent = state.computerPlayedCardIds.size > 0
     ? "Cards the computer just played are highlighted."
-    : "Select cards, then use a table action.";
+    : "Select cards, then click a meld or use a table action.";
   const validation = validateTable(state.table);
   const locked = player.isComputer || state.winner;
   const moveAvailable = !locked && hasAnyPlayableMove(player.hand, state.table);
@@ -380,12 +380,20 @@ function render() {
 function renderGroup(group, groupIndex) {
   const validation = validateGroup(group.cards);
   const groupEl = document.createElement("article");
-  groupEl.className = `meld ${validation.ok ? "" : "is-invalid"}`;
+  const canAddSelected = state.selected.size > 0 && !currentPlayer().isComputer && !state.winner;
+  groupEl.className = [
+    "meld",
+    validation.ok ? "" : "is-invalid",
+    canAddSelected ? "is-add-target" : "",
+  ].filter(Boolean).join(" ");
   groupEl.dataset.groupId = group.id;
+  if (canAddSelected) {
+    groupEl.tabIndex = 0;
+    groupEl.title = "Add selected cards to this meld";
+  }
   groupEl.innerHTML = `
     <div class="meld__head">
       <span>${validation.label}</span>
-      <button type="button" data-add-to-group="${group.id}">Add selected</button>
     </div>
     <div class="meld__cards"></div>
   `;
@@ -1326,14 +1334,23 @@ els.hand.addEventListener("click", (event) => {
 
 els.melds.addEventListener("click", (event) => {
   if (currentPlayer().isComputer) return;
-  const addButton = event.target.closest("[data-add-to-group]");
   const cardEl = event.target.closest("[data-card-id]");
+  const groupEl = event.target.closest("[data-group-id]");
 
-  if (addButton) {
-    moveSelectedToGroup(addButton.dataset.addToGroup);
-  } else if (cardEl) {
+  if (cardEl) {
     toggleSelected(cardEl.dataset.cardId);
+  } else if (groupEl && state.selected.size > 0) {
+    moveSelectedToGroup(groupEl.dataset.groupId);
   }
+});
+
+els.melds.addEventListener("keydown", (event) => {
+  if (currentPlayer().isComputer || state.selected.size === 0) return;
+  if (event.key !== "Enter" && event.key !== " ") return;
+  const groupEl = event.target.closest("[data-group-id]");
+  if (!groupEl || event.target.closest("[data-card-id]")) return;
+  event.preventDefault();
+  moveSelectedToGroup(groupEl.dataset.groupId);
 });
 
 els.game.addEventListener("dragstart", (event) => {
