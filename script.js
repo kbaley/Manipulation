@@ -22,6 +22,7 @@ const RANKS = [
 ];
 
 const MAX_REPARTITION_HAND_CARDS = 4;
+const SAVE_HASH_PREFIX = "game=";
 
 const state = {
   players: [],
@@ -39,6 +40,9 @@ const state = {
   moveIndicatorEnabled: false,
   winner: null,
 };
+
+const allCards = createDeckCards();
+const cardsById = new Map(allCards.map((card) => [card.id, card]));
 
 const els = {
   setup: document.querySelector("#setup"),
@@ -69,7 +73,7 @@ const els = {
   playAgainBtn: document.querySelector("#playAgainBtn"),
 };
 
-function buildDeck() {
+function createDeckCards() {
   const cards = [];
   for (let deckNumber = 1; deckNumber <= 2; deckNumber += 1) {
     for (const suit of SUITS) {
@@ -86,7 +90,11 @@ function buildDeck() {
       }
     }
   }
-  return shuffle(cards);
+  return cards;
+}
+
+function buildDeck() {
+  return shuffle(allCards);
 }
 
 function shuffle(cards) {
@@ -171,6 +179,141 @@ function cloneGroups(groups) {
   }));
 }
 
+function cardIds(cards) {
+  return cards.map((card) => card.id);
+}
+
+function cardsFromIds(ids) {
+  return ids.map((id) => cardsById.get(id)).filter(Boolean);
+}
+
+function groupsToSave(groups) {
+  return groups.map((group) => ({
+    id: group.id,
+    cards: cardIds(group.cards),
+  }));
+}
+
+function groupsFromSave(groups) {
+  return groups.map((group) => ({
+    id: group.id || crypto.randomUUID(),
+    cards: cardsFromIds(group.cards || []),
+  }));
+}
+
+function turnStartToSave(turnStart) {
+  if (!turnStart) return null;
+  return {
+    deck: cardIds(turnStart.deck),
+    table: groupsToSave(turnStart.table),
+    hand: cardIds(turnStart.hand),
+  };
+}
+
+function turnStartFromSave(turnStart) {
+  if (!turnStart) return null;
+  return {
+    deck: cardsFromIds(turnStart.deck || []),
+    table: groupsFromSave(turnStart.table || []),
+    hand: cardsFromIds(turnStart.hand || []),
+  };
+}
+
+function serializeGame() {
+  return {
+    v: 1,
+    players: state.players.map((player) => ({
+      id: player.id,
+      hand: cardIds(player.hand),
+    })),
+    deck: cardIds(state.deck),
+    table: groupsToSave(state.table),
+    currentPlayer: state.currentPlayer,
+    turnStart: turnStartToSave(state.turnStart),
+    returnableCardIds: [...state.returnableCardIds],
+    cardsPlayedThisTurn: state.cardsPlayedThisTurn,
+    lastDrawnCardId: state.lastDrawnCardId,
+    computerPlayedCardIds: [...state.computerPlayedCardIds],
+    moveIndicatorEnabled: state.moveIndicatorEnabled,
+    winnerId: state.winner?.id ?? null,
+  };
+}
+
+function encodeSave(payload) {
+  return btoa(JSON.stringify(payload))
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replaceAll("=", "");
+}
+
+function decodeSave(encoded) {
+  const normalized = encoded.replaceAll("-", "+").replaceAll("_", "/");
+  const padding = "=".repeat((4 - normalized.length % 4) % 4);
+  return JSON.parse(atob(normalized + padding));
+}
+
+function updateUrlState() {
+  if (state.players.length === 0) return;
+  const nextHash = `${SAVE_HASH_PREFIX}${encodeSave(serializeGame())}`;
+  const nextUrl = `${location.pathname}${location.search}#${nextHash}`;
+  history.replaceState(null, "", nextUrl);
+}
+
+function clearUrlState() {
+  history.replaceState(null, "", `${location.pathname}${location.search}`);
+}
+
+function loadGameFromUrl() {
+  const hash = location.hash.slice(1);
+  if (!hash.startsWith(SAVE_HASH_PREFIX)) return false;
+
+  try {
+    restoreGame(decodeSave(hash.slice(SAVE_HASH_PREFIX.length)));
+    return true;
+  } catch (error) {
+    console.warn("Unable to restore saved game from URL.", error);
+    clearUrlState();
+    return false;
+  }
+}
+
+function restoreGame(saved) {
+  if (saved.v !== 1 || !Array.isArray(saved.players)) {
+    throw new Error("Unsupported saved game.");
+  }
+
+  state.players = [
+    { id: 0, name: "You", isComputer: false, hand: cardsFromIds(saved.players.find((player) => player.id === 0)?.hand || []) },
+    { id: 1, name: "Computer", isComputer: true, hand: cardsFromIds(saved.players.find((player) => player.id === 1)?.hand || []) },
+  ];
+  state.deck = cardsFromIds(saved.deck || []);
+  state.table = groupsFromSave(saved.table || []);
+  state.currentPlayer = Number.isInteger(saved.currentPlayer) && saved.currentPlayer >= 0 && saved.currentPlayer < state.players.length
+    ? saved.currentPlayer
+    : 0;
+  state.selected.clear();
+  state.turnStart = turnStartFromSave(saved.turnStart);
+  state.returnableCardIds = new Set(saved.returnableCardIds || []);
+  state.cardsPlayedThisTurn = saved.cardsPlayedThisTurn || 0;
+  state.lastDrawnCardId = saved.lastDrawnCardId || null;
+  state.computerPlayedCardIds = new Set(saved.computerPlayedCardIds || []);
+  state.suggestedMove = null;
+  state.draggingCardId = null;
+  state.moveIndicatorEnabled = Boolean(saved.moveIndicatorEnabled);
+  state.winner = state.players.find((player) => player.id === saved.winnerId) || null;
+
+  if (!state.turnStart) captureTurnStart();
+  sortHands();
+  els.setup.classList.add("hidden");
+  els.game.classList.remove("hidden");
+  els.winnerModal.classList.toggle("hidden", !state.winner);
+  if (state.winner) {
+    els.winnerText.textContent = winnerMessage(state.winner);
+  }
+  render();
+  queueComputerTurn();
+}
+
 function render() {
   const player = currentPlayer();
   els.turnTitle.textContent = player.name;
@@ -231,6 +374,7 @@ function render() {
   } else {
     setMessage("Play cards, draw, or use Show move to check for a play.", "warn");
   }
+  updateUrlState();
 }
 
 function renderGroup(group, groupIndex) {
@@ -1304,4 +1448,11 @@ els.playAgainBtn.addEventListener("click", () => {
   els.winnerModal.classList.add("hidden");
   els.setup.classList.remove("hidden");
   els.game.classList.add("hidden");
+  clearUrlState();
 });
+
+window.addEventListener("hashchange", () => {
+  loadGameFromUrl();
+});
+
+loadGameFromUrl();
