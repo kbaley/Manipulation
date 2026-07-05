@@ -17,6 +17,21 @@
           </p>
           <button id="setupRulesBtn" class="text-link" type="button">Rules and how to play</button>
           <form id="setupForm" class="setup-form">
+            <fieldset class="difficulty-picker">
+              <legend>Computer difficulty</legend>
+              <label>
+                <input type="radio" name="computerDifficulty" value="easy" />
+                <span>Easy</span>
+              </label>
+              <label>
+                <input type="radio" name="computerDifficulty" value="medium" checked />
+                <span>Medium</span>
+              </label>
+              <label>
+                <input type="radio" name="computerDifficulty" value="hard" />
+                <span>Hard</span>
+              </label>
+            </fieldset>
             <button type="submit">Start game</button>
           </form>
         </div>
@@ -36,7 +51,7 @@
           <div class="section-head">
             <div>
               <h2>Table</h2>
-              <p id="tableHint">Select cards, then use a table action.</p>
+              <p id="tableHint">Select cards, then click a meld or use a table action.</p>
             </div>
             <div class="actions">
               <button id="newGroupBtn" type="button">New group</button>
@@ -116,9 +131,16 @@
             <h3>Table actions</h3>
             <ul>
               <li><strong>New group:</strong> Put the selected cards into their own new table group.</li>
-              <li><strong>Add selected:</strong> Add selected cards to that group and automatically sort the result.</li>
+              <li><strong>Add to a meld:</strong> Select cards, then click a meld to add them and automatically sort the result.</li>
               <li><strong>Take back:</strong> Return selected cards you played this turn to your hand.</li>
               <li><strong>Restore turn:</strong> Undo all of your changes and return the table, deck, and your hand to how they were at the start of your turn.</li>
+            </ul>
+
+            <h3>Computer difficulty</h3>
+            <ul>
+              <li><strong>Easy:</strong> Plays one straightforward move and does not look for table splits.</li>
+              <li><strong>Medium:</strong> Plays multiple moves and can use simple splits.</li>
+              <li><strong>Hard:</strong> Uses the full table-repartition search.</li>
             </ul>
 
             <h3>Card markers</h3>

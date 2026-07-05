@@ -145,6 +145,58 @@ h2 {
   margin-top: 28px;
 }
 
+.difficulty-picker {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.difficulty-picker legend {
+  grid-column: 1 / -1;
+  margin-bottom: 2px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.difficulty-picker label {
+  display: grid;
+}
+
+.difficulty-picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.difficulty-picker span {
+  display: grid;
+  min-height: 42px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfaf5;
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.difficulty-picker input:checked + span {
+  border-color: var(--accent);
+  color: #fff;
+  background: var(--accent);
+}
+
+.difficulty-picker input:focus-visible + span {
+  outline: 3px solid rgba(217, 95, 58, 0.32);
+  outline-offset: 2px;
+}
+
 .setup-form button {
   width: 100%;
   height: 48px;

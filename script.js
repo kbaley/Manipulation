@@ -23,11 +23,33 @@ const RANKS = [
 
 const MAX_REPARTITION_HAND_CARDS = 4;
 const SAVE_HASH_PREFIX = "game=";
+const COMPUTER_DIFFICULTIES = {
+  easy: {
+    label: "Easy",
+    moveSets: ["join", "new"],
+    maxMovesPerTurn: 1,
+    pickMove: pickLooseComputerMove,
+  },
+  medium: {
+    label: "Medium",
+    moveSets: ["join", "split", "new"],
+    maxMovesPerTurn: Infinity,
+    pickMove: pickBestComputerMove,
+  },
+  hard: {
+    label: "Hard",
+    moveSets: ["join", "split", "repartition", "new"],
+    maxMovesPerTurn: Infinity,
+    pickMove: pickBestComputerMove,
+  },
+};
+const DEFAULT_COMPUTER_DIFFICULTY = "medium";
 
 const state = {
   players: [],
   deck: [],
   table: [],
+  computerDifficulty: DEFAULT_COMPUTER_DIFFICULTY,
   currentPlayer: 0,
   selected: new Set(),
   turnStart: null,
@@ -47,6 +69,7 @@ const cardsById = new Map(allCards.map((card) => [card.id, card]));
 const els = {
   setup: document.querySelector("#setup"),
   setupForm: document.querySelector("#setupForm"),
+  computerDifficultyInputs: document.querySelectorAll("input[name='computerDifficulty']"),
   game: document.querySelector("#game"),
   turnTitle: document.querySelector("#turnTitle"),
   statusGrid: document.querySelector("#statusGrid"),
@@ -107,6 +130,7 @@ function shuffle(cards) {
 }
 
 function startGame() {
+  state.computerDifficulty = selectedComputerDifficulty();
   state.players = [
     { id: 0, name: "You", isComputer: false, hand: [] },
     { id: 1, name: "Computer", isComputer: true, hand: [] },
@@ -140,10 +164,10 @@ function startGame() {
 
 function setOpeningTurnMessage() {
   if (currentPlayer().isComputer) {
-    setMessage("Computer starts first.", "warn");
+    setMessage(`${computerDifficulty().label} computer starts first.`, "warn");
     return;
   }
-  setMessage("You start first.", "good");
+  setMessage(`You start first against the ${computerDifficulty().label.toLowerCase()} computer.`, "good");
 }
 
 function captureTurnStart() {
@@ -187,6 +211,25 @@ function cardsFromIds(ids) {
   return ids.map((id) => cardsById.get(id)).filter(Boolean);
 }
 
+function normalizeComputerDifficulty(value) {
+  return Object.hasOwn(COMPUTER_DIFFICULTIES, value) ? value : DEFAULT_COMPUTER_DIFFICULTY;
+}
+
+function computerDifficulty() {
+  return COMPUTER_DIFFICULTIES[state.computerDifficulty] || COMPUTER_DIFFICULTIES[DEFAULT_COMPUTER_DIFFICULTY];
+}
+
+function selectedComputerDifficulty() {
+  const selectedInput = [...els.computerDifficultyInputs].find((input) => input.checked);
+  return normalizeComputerDifficulty(selectedInput?.value);
+}
+
+function syncComputerDifficultyInput() {
+  for (const input of els.computerDifficultyInputs) {
+    input.checked = input.value === state.computerDifficulty;
+  }
+}
+
 function groupsToSave(groups) {
   return groups.map((group) => ({
     id: group.id,
@@ -226,6 +269,7 @@ function serializeGame() {
       id: player.id,
       hand: cardIds(player.hand),
     })),
+    computerDifficulty: state.computerDifficulty,
     deck: cardIds(state.deck),
     table: groupsToSave(state.table),
     currentPlayer: state.currentPlayer,
@@ -288,6 +332,7 @@ function restoreGame(saved) {
   ];
   state.deck = cardsFromIds(saved.deck || []);
   state.table = groupsFromSave(saved.table || []);
+  state.computerDifficulty = normalizeComputerDifficulty(saved.computerDifficulty);
   state.currentPlayer = Number.isInteger(saved.currentPlayer) && saved.currentPlayer >= 0 && saved.currentPlayer < state.players.length
     ? saved.currentPlayer
     : 0;
@@ -303,6 +348,7 @@ function restoreGame(saved) {
   state.winner = state.players.find((player) => player.id === saved.winnerId) || null;
 
   if (!state.turnStart) captureTurnStart();
+  syncComputerDifficultyInput();
   sortHands();
   els.setup.classList.add("hidden");
   els.game.classList.remove("hidden");
@@ -1068,10 +1114,11 @@ function queueComputerTurn() {
 function playComputerTurn() {
   if (!currentPlayer().isComputer || state.winner) return;
   const player = currentPlayer();
+  const difficulty = computerDifficulty();
   let drawn = 0;
 
   clearComputerPlayHighlight();
-  while (!hasAnyPlayableMove(player.hand, state.table) && state.deck.length > 0) {
+  while (getComputerMoveCandidates().length === 0 && state.deck.length > 0) {
     const drawnCard = state.deck.pop();
     player.hand.push(drawnCard);
     state.returnableCardIds.add(drawnCard.id);
@@ -1082,7 +1129,7 @@ function playComputerTurn() {
   sortHands();
 
   let moves = 0;
-  while (playBestComputerMove()) {
+  while (moves < difficulty.maxMovesPerTurn && playComputerMove()) {
     moves += 1;
   }
 
@@ -1094,16 +1141,9 @@ function playComputerTurn() {
   }
 }
 
-function playBestComputerMove() {
-  const candidates = [
-    ...getComputerJoinCandidates(),
-    ...getComputerSplitRunCandidates(),
-    ...getComputerSplitKindCandidates(),
-    ...getComputerRepartitionCandidates(),
-    ...getComputerNewMeldCandidates(),
-  ];
-  candidates.sort(compareComputerMoves);
-  const best = candidates[0];
+function playComputerMove() {
+  const candidates = getComputerMoveCandidates();
+  const best = computerDifficulty().pickMove(candidates);
   if (!best) return false;
   best.play();
   for (const card of best.handCards) {
@@ -1116,9 +1156,41 @@ function playBestComputerMove() {
   return true;
 }
 
+function getComputerMoveCandidates() {
+  const moveSets = new Set(computerDifficulty().moveSets);
+  const candidates = [];
+  if (moveSets.has("join")) {
+    candidates.push(...getComputerJoinCandidates());
+  }
+  if (moveSets.has("split")) {
+    candidates.push(...getComputerSplitRunCandidates(), ...getComputerSplitKindCandidates());
+  }
+  if (moveSets.has("repartition")) {
+    candidates.push(...getComputerRepartitionCandidates());
+  }
+  if (moveSets.has("new")) {
+    candidates.push(...getComputerNewMeldCandidates());
+  }
+  return candidates;
+}
+
+function pickBestComputerMove(candidates) {
+  return [...candidates].sort(compareComputerMoves)[0] || null;
+}
+
+function pickLooseComputerMove(candidates) {
+  return [...candidates].sort(compareLooseComputerMoves)[0] || null;
+}
+
 function compareComputerMoves(a, b) {
   return b.handCards.length - a.handCards.length ||
     b.score - a.score ||
+    a.label.localeCompare(b.label);
+}
+
+function compareLooseComputerMoves(a, b) {
+  return a.handCards.length - b.handCards.length ||
+    a.score - b.score ||
     a.label.localeCompare(b.label);
 }
 
