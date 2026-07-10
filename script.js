@@ -62,8 +62,10 @@ const state = {
   draggingCardId: null,
   moveIndicatorEnabled: false,
   winner: null,
+  moveAvailabilityCache: null,
 };
 let statsReturnView = "setup";
+let lastSavedHash = "";
 
 const allCards = createDeckCards();
 const cardsById = new Map(allCards.map((card) => [card.id, card]));
@@ -155,6 +157,7 @@ function startGame() {
   state.cardsPlayedThisTurn = 0;
   state.lastDrawnCardId = null;
   state.winner = null;
+  state.moveAvailabilityCache = null;
 
   for (let cardNumber = 0; cardNumber < 3; cardNumber += 1) {
     for (const player of state.players) {
@@ -238,6 +241,24 @@ function syncComputerDifficultyInput() {
   for (const input of els.computerDifficultyInputs) {
     input.checked = input.value === state.computerDifficulty;
   }
+}
+
+function moveAvailabilityKey(hand, table) {
+  return JSON.stringify({
+    hand: cardIds(hand).sort(),
+    table: table.map((group) => cardIds(group.cards)),
+  });
+}
+
+function getCachedMoveAvailability(hand, table) {
+  const key = moveAvailabilityKey(hand, table);
+  if (state.moveAvailabilityCache?.key === key) {
+    return state.moveAvailabilityCache.available;
+  }
+
+  const available = hasAnyPlayableMove(hand, table);
+  state.moveAvailabilityCache = { key, available };
+  return available;
 }
 
 function defaultStats() {
@@ -443,11 +464,14 @@ function decodeSave(encoded) {
 function updateUrlState() {
   if (state.players.length === 0) return;
   const nextHash = `${SAVE_HASH_PREFIX}${encodeSave(serializeGame())}`;
+  if (nextHash === lastSavedHash) return;
   const nextUrl = `${location.pathname}${location.search}#${nextHash}`;
+  lastSavedHash = nextHash;
   history.replaceState(null, "", nextUrl);
 }
 
 function clearUrlState() {
+  lastSavedHash = "";
   history.replaceState(null, "", `${location.pathname}${location.search}`);
 }
 
@@ -490,6 +514,8 @@ function restoreGame(saved) {
   state.draggingCardId = null;
   state.moveIndicatorEnabled = Boolean(saved.moveIndicatorEnabled);
   state.winner = state.players.find((player) => player.id === saved.winnerId) || null;
+  state.moveAvailabilityCache = null;
+  lastSavedHash = location.hash.startsWith(`#${SAVE_HASH_PREFIX}`) ? location.hash.slice(1) : "";
 
   if (!state.turnStart) captureTurnStart();
   syncComputerDifficultyInput();
@@ -513,7 +539,9 @@ function render() {
     : "Select cards, then click a meld or use a table action.";
   const validation = validateTable(state.table);
   const locked = player.isComputer || state.winner;
-  const moveAvailable = !locked && hasAnyPlayableMove(player.hand, state.table);
+  const moveAvailable = state.moveIndicatorEnabled && !locked
+    ? getCachedMoveAvailability(player.hand, state.table)
+    : false;
   if (locked) {
     state.suggestedMove = null;
   }
@@ -793,7 +821,7 @@ function restoreTurn() {
 function drawCard() {
   const player = currentPlayer();
   if (state.cardsPlayedThisTurn > 0) return;
-  if (hasAnyPlayableMove(player.hand, state.table)) {
+  if (getCachedMoveAvailability(player.hand, state.table)) {
     render();
     setMessage("You can make a play, so drawing is not allowed.", "bad");
     return;
