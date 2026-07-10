@@ -241,7 +241,10 @@ function syncComputerDifficultyInput() {
 }
 
 function defaultStats() {
-  return Object.fromEntries(Object.keys(COMPUTER_DIFFICULTIES).map((difficulty) => [difficulty, 0]));
+  return Object.fromEntries(Object.keys(COMPUTER_DIFFICULTIES).map((difficulty) => [
+    difficulty,
+    { wins: 0, played: 0 },
+  ]));
 }
 
 function loadStats() {
@@ -249,8 +252,15 @@ function loadStats() {
   try {
     const saved = JSON.parse(localStorage.getItem(STATS_STORAGE_KEY) || "{}");
     for (const difficulty of Object.keys(stats)) {
-      const wins = saved[difficulty];
-      stats[difficulty] = Number.isInteger(wins) && wins > 0 ? wins : 0;
+      const record = saved[difficulty];
+      if (Number.isInteger(record)) {
+        stats[difficulty] = { wins: Math.max(0, record), played: Math.max(0, record) };
+        continue;
+      }
+      if (!record || typeof record !== "object") continue;
+      const wins = Number.isInteger(record.wins) && record.wins > 0 ? record.wins : 0;
+      const played = Number.isInteger(record.played) && record.played > 0 ? record.played : 0;
+      stats[difficulty] = { wins: Math.min(wins, played), played };
     }
   } catch (error) {
     console.warn("Unable to load stats.", error);
@@ -266,10 +276,13 @@ function saveStats(stats) {
   }
 }
 
-function recordUserWin(difficulty) {
+function recordGameResult(difficulty, userWon) {
   const normalizedDifficulty = normalizeComputerDifficulty(difficulty);
   const stats = loadStats();
-  stats[normalizedDifficulty] += 1;
+  stats[normalizedDifficulty].played += 1;
+  if (userWon) {
+    stats[normalizedDifficulty].wins += 1;
+  }
   saveStats(stats);
 }
 
@@ -279,7 +292,16 @@ function resetStats() {
 }
 
 function totalUserWins(stats) {
-  return Object.values(stats).reduce((total, wins) => total + wins, 0);
+  return Object.values(stats).reduce((total, record) => total + record.wins, 0);
+}
+
+function totalGamesPlayed(stats) {
+  return Object.values(stats).reduce((total, record) => total + record.played, 0);
+}
+
+function winPercentage(record) {
+  if (record.played === 0) return "0%";
+  return `${Math.round(record.wins / record.played * 100)}%`;
 }
 
 function renderStats() {
@@ -287,22 +309,45 @@ function renderStats() {
   els.statsGrid.innerHTML = "";
 
   for (const [difficulty, config] of Object.entries(COMPUTER_DIFFICULTIES)) {
+    const record = stats[difficulty];
     const stat = document.createElement("article");
     stat.className = "stat-card";
     stat.innerHTML = `
       <span>${config.label}</span>
-      <strong>${stats[difficulty]}</strong>
-      <small>${stats[difficulty] === 1 ? "win" : "wins"}</small>
+      <strong>${winPercentage(record)}</strong>
+      <dl>
+        <div>
+          <dt>Wins</dt>
+          <dd>${record.wins}</dd>
+        </div>
+        <div>
+          <dt>Played</dt>
+          <dd>${record.played}</dd>
+        </div>
+      </dl>
     `;
     els.statsGrid.append(stat);
   }
 
+  const totalRecord = {
+    wins: totalUserWins(stats),
+    played: totalGamesPlayed(stats),
+  };
   const total = document.createElement("article");
   total.className = "stat-card stat-card--total";
   total.innerHTML = `
     <span>Total</span>
-    <strong>${totalUserWins(stats)}</strong>
-    <small>${totalUserWins(stats) === 1 ? "win" : "wins"}</small>
+    <strong>${winPercentage(totalRecord)}</strong>
+    <dl>
+      <div>
+        <dt>Wins</dt>
+        <dd>${totalRecord.wins}</dd>
+      </div>
+      <div>
+        <dt>Played</dt>
+        <dd>${totalRecord.played}</dd>
+      </div>
+    </dl>
   `;
   els.statsGrid.append(total);
 }
@@ -772,9 +817,7 @@ function endTurn() {
   if (state.cardsPlayedThisTurn === 0 || !validation.ok) return;
   if (currentPlayer().hand.length === 0) {
     state.winner = currentPlayer();
-    if (!state.winner.isComputer) {
-      recordUserWin(state.computerDifficulty);
-    }
+    recordGameResult(state.computerDifficulty, !state.winner.isComputer);
     els.winnerText.textContent = winnerMessage(currentPlayer());
     els.winnerModal.classList.remove("hidden");
     render();
