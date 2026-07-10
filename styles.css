@@ -135,6 +135,13 @@ h2 {
   line-height: 1.55;
 }
 
+.setup-links,
+.topbar-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
 .setup__panel .text-link {
   margin-top: 2px;
 }
@@ -702,6 +709,17 @@ h2 {
   font-size: 2.4rem;
 }
 
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.modal-actions button {
+  flex: 1 1 160px;
+}
+
 .rules-panel h2 {
   margin-bottom: 0;
   font-size: 1.9rem;
@@ -714,6 +732,94 @@ h2 {
 
 .rules-panel .icon-button {
   max-width: none;
+}
+
+.stats-page {
+  display: grid;
+  min-height: 100vh;
+  padding: 24px;
+  place-items: center;
+}
+
+.stats-page__panel {
+  display: grid;
+  width: min(760px, 100%);
+  gap: 24px;
+  padding: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+}
+
+.stats-page__head {
+  display: flex;
+  gap: 16px;
+  align-items: start;
+  justify-content: space-between;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.stat-card {
+  display: grid;
+  min-height: 132px;
+  align-content: center;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfaf5;
+  text-align: center;
+}
+
+.stat-card span {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.stat-card strong {
+  font-size: 2.6rem;
+  line-height: 1;
+}
+
+.stat-card small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.stat-card--total {
+  border-color: rgba(31, 122, 85, 0.5);
+  background: #eef8f2;
+}
+
+.stats-page__footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.stats-page__footer button {
+  min-width: 140px;
+  padding: 0 14px;
+}
+
+#resetStatsBtn {
+  color: var(--bad);
+  background: #fff8f5;
+}
+
+#backFromStatsBtn {
+  border-color: var(--accent-dark);
+  color: #fff;
+  background: var(--accent);
 }
 
 @media (max-width: 760px) {
@@ -745,5 +851,17 @@ h2 {
     width: 62px;
     height: 88px;
     flex-basis: 62px;
+  }
+
+  .stats-page {
+    padding: 12px;
+  }
+
+  .stats-page__panel {
+    padding: 20px;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

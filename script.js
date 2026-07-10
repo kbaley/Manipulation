@@ -23,6 +23,7 @@ const RANKS = [
 
 const MAX_REPARTITION_HAND_CARDS = 4;
 const SAVE_HASH_PREFIX = "game=";
+const STATS_STORAGE_KEY = "manipulation.stats.v1";
 const COMPUTER_DIFFICULTIES = {
   easy: {
     label: "Easy",
@@ -62,6 +63,7 @@ const state = {
   moveIndicatorEnabled: false,
   winner: null,
 };
+let statsReturnView = "setup";
 
 const allCards = createDeckCards();
 const cardsById = new Map(allCards.map((card) => [card.id, card]));
@@ -70,6 +72,7 @@ const els = {
   setup: document.querySelector("#setup"),
   setupForm: document.querySelector("#setupForm"),
   computerDifficultyInputs: document.querySelectorAll("input[name='computerDifficulty']"),
+  setupStatsBtn: document.querySelector("#setupStatsBtn"),
   game: document.querySelector("#game"),
   turnTitle: document.querySelector("#turnTitle"),
   statusGrid: document.querySelector("#statusGrid"),
@@ -89,10 +92,17 @@ const els = {
   restoreBtn: document.querySelector("#restoreBtn"),
   setupRulesBtn: document.querySelector("#setupRulesBtn"),
   gameRulesBtn: document.querySelector("#gameRulesBtn"),
+  gameStatsBtn: document.querySelector("#gameStatsBtn"),
+  statsPage: document.querySelector("#statsPage"),
+  statsGrid: document.querySelector("#statsGrid"),
+  closeStatsBtn: document.querySelector("#closeStatsBtn"),
+  backFromStatsBtn: document.querySelector("#backFromStatsBtn"),
+  resetStatsBtn: document.querySelector("#resetStatsBtn"),
   rulesModal: document.querySelector("#rulesModal"),
   closeRulesBtn: document.querySelector("#closeRulesBtn"),
   winnerModal: document.querySelector("#winnerModal"),
   winnerText: document.querySelector("#winnerText"),
+  winnerStatsBtn: document.querySelector("#winnerStatsBtn"),
   playAgainBtn: document.querySelector("#playAgainBtn"),
 };
 
@@ -228,6 +238,95 @@ function syncComputerDifficultyInput() {
   for (const input of els.computerDifficultyInputs) {
     input.checked = input.value === state.computerDifficulty;
   }
+}
+
+function defaultStats() {
+  return Object.fromEntries(Object.keys(COMPUTER_DIFFICULTIES).map((difficulty) => [difficulty, 0]));
+}
+
+function loadStats() {
+  const stats = defaultStats();
+  try {
+    const saved = JSON.parse(localStorage.getItem(STATS_STORAGE_KEY) || "{}");
+    for (const difficulty of Object.keys(stats)) {
+      const wins = saved[difficulty];
+      stats[difficulty] = Number.isInteger(wins) && wins > 0 ? wins : 0;
+    }
+  } catch (error) {
+    console.warn("Unable to load stats.", error);
+  }
+  return stats;
+}
+
+function saveStats(stats) {
+  try {
+    localStorage.setItem(STATS_STORAGE_KEY, JSON.stringify(stats));
+  } catch (error) {
+    console.warn("Unable to save stats.", error);
+  }
+}
+
+function recordUserWin(difficulty) {
+  const normalizedDifficulty = normalizeComputerDifficulty(difficulty);
+  const stats = loadStats();
+  stats[normalizedDifficulty] += 1;
+  saveStats(stats);
+}
+
+function resetStats() {
+  saveStats(defaultStats());
+  renderStats();
+}
+
+function totalUserWins(stats) {
+  return Object.values(stats).reduce((total, wins) => total + wins, 0);
+}
+
+function renderStats() {
+  const stats = loadStats();
+  els.statsGrid.innerHTML = "";
+
+  for (const [difficulty, config] of Object.entries(COMPUTER_DIFFICULTIES)) {
+    const stat = document.createElement("article");
+    stat.className = "stat-card";
+    stat.innerHTML = `
+      <span>${config.label}</span>
+      <strong>${stats[difficulty]}</strong>
+      <small>${stats[difficulty] === 1 ? "win" : "wins"}</small>
+    `;
+    els.statsGrid.append(stat);
+  }
+
+  const total = document.createElement("article");
+  total.className = "stat-card stat-card--total";
+  total.innerHTML = `
+    <span>Total</span>
+    <strong>${totalUserWins(stats)}</strong>
+    <small>${totalUserWins(stats) === 1 ? "win" : "wins"}</small>
+  `;
+  els.statsGrid.append(total);
+}
+
+function openStats(returnView = null) {
+  statsReturnView = returnView || (els.game.classList.contains("hidden") ? "setup" : "game");
+  renderStats();
+  els.rulesModal.classList.add("hidden");
+  els.winnerModal.classList.add("hidden");
+  els.setup.classList.add("hidden");
+  els.game.classList.add("hidden");
+  els.statsPage.classList.remove("hidden");
+  els.closeStatsBtn.focus();
+}
+
+function closeStats() {
+  els.statsPage.classList.add("hidden");
+  if (statsReturnView === "game" && state.players.length > 0) {
+    els.game.classList.remove("hidden");
+    els.winnerModal.classList.toggle("hidden", !state.winner);
+    render();
+    return;
+  }
+  els.setup.classList.remove("hidden");
 }
 
 function groupsToSave(groups) {
@@ -673,6 +772,9 @@ function endTurn() {
   if (state.cardsPlayedThisTurn === 0 || !validation.ok) return;
   if (currentPlayer().hand.length === 0) {
     state.winner = currentPlayer();
+    if (!state.winner.isComputer) {
+      recordUserWin(state.computerDifficulty);
+    }
     els.winnerText.textContent = winnerMessage(currentPlayer());
     els.winnerModal.classList.remove("hidden");
     render();
@@ -1524,17 +1626,28 @@ els.moveAlertToggle.addEventListener("change", () => {
 });
 els.setupRulesBtn.addEventListener("click", openRules);
 els.gameRulesBtn.addEventListener("click", openRules);
+els.setupStatsBtn.addEventListener("click", () => openStats("setup"));
+els.gameStatsBtn.addEventListener("click", () => openStats("game"));
+els.winnerStatsBtn.addEventListener("click", () => openStats("game"));
+els.closeStatsBtn.addEventListener("click", closeStats);
+els.backFromStatsBtn.addEventListener("click", closeStats);
+els.resetStatsBtn.addEventListener("click", resetStats);
 els.closeRulesBtn.addEventListener("click", closeRules);
 els.rulesModal.addEventListener("click", (event) => {
   if (event.target === els.rulesModal) closeRules();
 });
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !els.statsPage.classList.contains("hidden")) {
+    closeStats();
+    return;
+  }
   if (event.key === "Escape" && !els.rulesModal.classList.contains("hidden")) {
     closeRules();
   }
 });
 els.playAgainBtn.addEventListener("click", () => {
   els.winnerModal.classList.add("hidden");
+  els.statsPage.classList.add("hidden");
   els.setup.classList.remove("hidden");
   els.game.classList.add("hidden");
   clearUrlState();
