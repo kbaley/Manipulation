@@ -719,6 +719,7 @@ function moveSelectedToGroup(groupId) {
   state.selected.clear();
   removeEmptyGroups();
   sortHands();
+  declareWinnerIfComplete();
   render();
 }
 
@@ -738,6 +739,7 @@ function moveSingleCardToGroup(cardId, groupId) {
   state.draggingCardId = null;
   removeEmptyGroups();
   sortHands();
+  declareWinnerIfComplete();
   render();
 }
 
@@ -756,6 +758,7 @@ function createGroupFromSelected() {
   state.selected.clear();
   removeEmptyGroups();
   sortHands();
+  declareWinnerIfComplete();
   render();
 }
 
@@ -843,11 +846,7 @@ function drawCard() {
 function endTurn() {
   const validation = validateTable(state.table);
   if (state.cardsPlayedThisTurn === 0 || !validation.ok) return;
-  if (currentPlayer().hand.length === 0) {
-    state.winner = currentPlayer();
-    recordGameResult(state.computerDifficulty, !state.winner.isComputer);
-    els.winnerText.textContent = winnerMessage(currentPlayer());
-    els.winnerModal.classList.remove("hidden");
+  if (declareWinnerIfComplete()) {
     render();
     return;
   }
@@ -861,6 +860,17 @@ function endTurn() {
   }
   render();
   queueComputerTurn();
+}
+
+function declareWinnerIfComplete() {
+  if (state.winner || currentPlayer().hand.length > 0 || state.cardsPlayedThisTurn === 0) return false;
+  if (!validateTable(state.table).ok) return false;
+
+  state.winner = currentPlayer();
+  recordGameResult(state.computerDifficulty, !state.winner.isComputer);
+  els.winnerText.textContent = winnerMessage(state.winner);
+  els.winnerModal.classList.remove("hidden");
+  return true;
 }
 
 function freezeVisibleControls() {
